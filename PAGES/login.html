@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Mi Suite Web</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <div class="container" style="max-width: 420px; margin-top: 4rem;">
+    <div class="card">
+      <h2 style="margin-bottom: 1.5rem; text-align: center;">Mi Suite Web</h2>
+
+      <div id="msg-error" class="msg-error" style="display:none;"></div>
+      <div id="msg-ok" class="msg-ok" style="display:none;"></div>
+
+      <input type="email" id="email" placeholder="Correo electrónico" />
+      <input type="password" id="password" placeholder="Contraseña" />
+
+      <button class="btn btn-primary" style="width:100%; margin-bottom: 0.8rem;"
+        onclick="iniciarSesion()">
+        Iniciar sesión
+      </button>
+
+      <button class="btn" style="width:100%; background:#f3f4f6;"
+        onclick="registrarse()">
+        Crear cuenta
+      </button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,68 @@
+// Configuración Supabase
+const SUPABASE_URL = https://kiusmfwdgsodqmoqpaxr.supabase.co
+const SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpdXNtZndkZ3NvZHFtb3FwYXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMjEyNDgsImV4cCI6MjA5MDU5NzI0OH0.MJM0fYZdzBytsJjBYo1GOcFo2jK3_EUZ0j2TqcsxQSw
+
+const { createClient } = supabase
+const db = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// Mostrar mensajes
+function mostrarError(msg) {
+  const el = document.getElementById('msg-error')
+  if (!el) return
+  el.textContent = msg
+  el.style.display = 'block'
+  setTimeout(() => el.style.display = 'none', 4000)
+}
+
+function mostrarOk(msg) {
+  const el = document.getElementById('msg-ok')
+  if (!el) return
+  el.textContent = msg
+  el.style.display = 'block'
+  setTimeout(() => el.style.display = 'none', 4000)
+}
+
+// Iniciar sesión
+async function iniciarSesion() {
+  const email = document.getElementById('email').value
+  const password = document.getElementById('password').value
+
+  const { error } = await db.auth.signInWithPassword({ email, password })
+
+  if (error) {
+    mostrarError('Correo o contraseña incorrectos.')
+  } else {
+    window.location.href = '../index.html'
+  }
+}
+
+// Registrarse
+async function registrarse() {
+  const email = document.getElementById('email').value
+  const password = document.getElementById('password').value
+
+  if (password.length < 8) {
+    mostrarError('La contraseña debe tener al menos 8 caracteres.')
+    return
+  }
+
+  const { error } = await db.auth.signUp({ email, password })
+
+  if (error) {
+    mostrarError('Error al crear cuenta: ' + error.message)
+  } else {
+    mostrarOk('Cuenta creada. Revisa tu correo para confirmar.')
+  }
+}
+
+// Cerrar sesión
+async function cerrarSesion() {
+  await db.auth.signOut()
+  window.location.href = 'pages/login.html'
+}
+
+// Verificar sesión activa
+async function verificarSesion() {
+  const { data } = await db.auth.getSession()
+  return data.session
+}
