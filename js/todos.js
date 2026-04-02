@@ -281,15 +281,12 @@ function renderReporteLista() {
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
-  const body = document.getElementById('reporte-body-lista')
-  const toggle = body?.parentElement?.querySelector('.reporte-toggle')
-  if (body) body.classList.toggle('open', !reporteOculto)
-  if (toggle) toggle.classList.toggle('open', !reporteOculto)
-}
-
-async function eliminarDeReporte(id) {
-  if (!confirm('Remove this entry from the log?')) return
-  await eliminarTodo(id)
+  document.querySelectorAll('.reporte-body').forEach(body => {
+    body.classList.toggle('open', !reporteOculto)
+  })
+  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
+    toggle.classList.toggle('open', !reporteOculto)
+  })
 }
 
 // ==================== KANBAN ====================
@@ -510,13 +507,9 @@ function abrirTodoCard(todo, cardEl) {
       onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
       ${descifrar(todo.text_enc)}
     </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
-      <select id="card-col-${todo.id}"
-        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
-        ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
-      </select>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
       <button onclick="event.stopPropagation();eliminarTodo('${todo.id}')"
-        style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
+        style="font-size:11px;padding:3px 10px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
         Delete
       </button>
     </div>
@@ -530,17 +523,7 @@ function abrirTodoCard(todo, cardEl) {
   setTimeout(() => {
     function clickFuera(e) {
       if (cardEl.contains(e.target)) return
-
-      // Guardar nueva columna seleccionada antes de cerrar
-      const selectEl = document.getElementById(`card-col-${todo.id}`)
-      if (selectEl && selectEl.value !== todo.kanban_column_id) {
-        cambiarColumnaKanban(todo.id, selectEl.value).then(() => {
-          cargarTodos().then(() => renderTodos())
-        })
-      } else {
-        cerrarCardExpandida(cardEl, todo)
-      }
-
+      cerrarCardExpandida(cardEl, todo)
       document.removeEventListener('click', clickFuera)
     }
     document.addEventListener('click', clickFuera)
