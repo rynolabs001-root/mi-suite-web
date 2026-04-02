@@ -45,8 +45,8 @@ function cerrarTodos() {
 // ==================== CARGAR ====================
 
 async function cargarTodosGlobal() {
-  // Archive closed todos from previous sessions before rendering
-  await archivarClosedPreviosSesion()
+  // On load: archive todos with status=closed from previous sessions
+  await archivarClosedPrevSession()
 
   const { data: todos } = await db.from('todos').select('*').order('sort_order')
   const seenIds = new Set()
@@ -84,13 +84,9 @@ async function cargarTodosGlobal() {
   await cargarTodosSummary()
 }
 
-// Archive closed todos from previous sessions to log
-// They stay in DB with status=closed but are excluded from kanban board
-async function archivarClosedPreviosSesion() {
-  // Todos with status=closed that don't have _closedThisSession flag
-  // are from a previous session — move them out of CLOSED col display
-  // (they remain in DB for the log, but we null their kanban_column_id
-  // so they only appear in the log, not the board)
+// Archive closed todos from previous sessions
+// They stay in DB with status=archived and appear only in log
+async function archivarClosedPrevSession() {
   const { data: closedTodos } = await db
     .from('todos')
     .select('id')
@@ -98,10 +94,51 @@ async function archivarClosedPreviosSesion() {
 
   if (!closedTodos?.length) return
 
-  // Move them to archived status so they appear only in log
   await db.from('todos')
     .update({ status: 'archived' })
     .eq('status', 'closed')
+}
+
+// Archive closed todos from current session — called on view switch / sign out / refresh btn
+async function archivarClosedYRefrescar() {
+  // Archive in-memory closed items
+  const closedIds = todosList
+    .filter(t => t._closedThisSession === true)
+    .map(t => t.id)
+
+  if (closedIds.length > 0) {
+    await db.from('todos')
+      .update({ status: 'archived' })
+      .in('id', closedIds)
+
+    todosList = todosList.map(t => {
+      if (t._closedThisSession) {
+        return { ...t, status: 'archived', _closedThisSession: false }
+      }
+      return t
+    })
+  }
+
+  // Also archive any closed in DB that we might have missed
+  await archivarClosedPrevSession()
+
+  // Refresh totals in sidebar
+  await cargarTodosSummary()
+}
+
+// Called by refresh button in kanban header
+async function refreshClosed() {
+  await archivarClosedYRefrescar()
+  // Reload todos to get fresh state
+  const { data: todos } = await db.from('todos').select('*').order('sort_order')
+  const seenIds = new Set()
+  todosList = (todos || []).filter(t => {
+    if (seenIds.has(t.id)) return false
+    seenIds.add(t.id)
+    return true
+  })
+  renderTodos()
+  await cargarTodosSummary()
 }
 
 // ==================== RENDER ====================
@@ -126,17 +163,9 @@ function diasEntre(inicio, fin) {
   return Math.floor((b - a) / (1000 * 60 * 60 * 24))
 }
 
-function diasVencidos(todo) {
-  if (['done', 'closed', 'archived'].includes(todo.status)) return -Infinity
-  return diasEntre(todo.started_at, null) || 0
-}
-
 // ==================== LISTA ====================
 
 function renderLista() {
-  // Archive closed when switching to list view
-  limpiarClosedThisSession()
-
   const body = document.getElementById('todos-body')
   body.innerHTML = ''
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;'
@@ -149,7 +178,13 @@ function renderLista() {
   zona.style.cssText = 'padding:10px;flex:1;overflow-y:auto;min-height:0;'
   body.appendChild(zona)
 
-  // Active: oldest first
+  // Show todo-add-bar in list mode
+  const addBar = document.getElementById('todo-add-bar')
+  if (addBar && !(typeof esMobile === 'function' && esMobile())) {
+    addBar.style.display = 'flex'
+  }
+
+  // Active: oldest first (most days open at top)
   const activos = todosList
     .filter(t => t.status === 'pending' || t.status === 'in_progress')
     .sort((a, b) => (diasEntre(b.started_at, null) || 0) - (diasEntre(a.started_at, null) || 0))
@@ -162,12 +197,11 @@ function renderLista() {
   const todos = [...activos, ...hechos]
 
   if (!todos.length) {
-    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet.</p>'
+    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet. Add one below!</p>'
   } else {
     todos.forEach(todo => zona.appendChild(crearTodoItem(todo)))
   }
 
-  // Desktop drag
   zona.addEventListener('dragover', e => {
     e.preventDefault()
     const afterEl = getDragAfterElement(zona, e.clientY, '.todo-item')
@@ -223,7 +257,6 @@ function crearTodoItem(todo) {
       style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;flex-shrink:0;">✕</button>
   `
 
-  // Desktop drag
   div.draggable = true
   div.addEventListener('dragstart', e => {
     draggedTodo = todo.id
@@ -236,9 +269,7 @@ function crearTodoItem(todo) {
     limpiarIndicadores(document.getElementById('todos-zona'))
   })
 
-  // Mobile touch drag
   iniciarTouchDragTodo(div, todo)
-
   return div
 }
 
@@ -252,12 +283,16 @@ function renderKanban() {
   const title = document.getElementById('todos-panel-title')
   if (title) title.textContent = 'Kanban'
 
+  // Hide todo-add-bar in kanban mode
+  const addBar = document.getElementById('todo-add-bar')
+  if (addBar) addBar.style.display = 'none'
+
   const zona = document.createElement('div')
   zona.id = 'kanban-zona'
   zona.style.cssText = 'display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:10px;flex:1;min-height:0;'
   body.appendChild(zona)
 
-  // Source = ALL pending todos (exact mirror of To-Do list)
+  // Source column = ALL pending todos (exact mirror of To-Do list)
   const sourceTodos = todosList
     .filter(t => t.status === 'pending')
     .sort((a, b) => (diasEntre(b.started_at, null) || 0) - (diasEntre(a.started_at, null) || 0))
@@ -304,20 +339,6 @@ function renderKanban() {
   body.appendChild(rw)
 }
 
-function limpiarClosedThisSession() {
-  // When switching views, archive closed items to log
-  const closedItems = todosList.filter(t => t._closedThisSession === true)
-  if (!closedItems.length) return
-
-  closedItems.forEach(t => {
-    t._closedThisSession = false
-    t._archivedToLog = true
-  })
-
-  // Update sidebar
-  if (typeof cargarTodosSummary === 'function') cargarTodosSummary()
-}
-
 function crearKanbanColSource(sourceTodos) {
   const colDiv = document.createElement('div')
   colDiv.className = 'kanban-col col-source'
@@ -333,11 +354,35 @@ function crearKanbanColSource(sourceTodos) {
 
   sourceTodos.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, 'source', false, true)))
 
+  // Add task button for source column
+  const addBtn = document.createElement('button')
+  addBtn.className = 'kanban-add-btn'
+  addBtn.textContent = '+ Add task'
+  addBtn.onclick = async () => {
+    const texto = prompt('Task name:')
+    if (!texto) return
+    const { data } = await db.from('todos').insert({
+      text_enc: cifrar(texto),
+      status: 'pending',
+      kanban_column_id: null,
+      sort_order: todosList.length,
+      started_at: new Date().toISOString(),
+      created_by: sesionActual.user.id
+    }).select().single()
+    if (data) {
+      todosList.push(data)
+      renderTodos()
+      await cargarTodosSummary()
+    }
+  }
+  colDiv.appendChild(addBtn)
+
   colDiv.addEventListener('dragover', e => {
     e.preventDefault()
     limpiarIndicadores(colDiv)
     const ind = crearIndicador()
-    colDiv.appendChild(ind)
+    const addB = colDiv.querySelector('.kanban-add-btn')
+    addB ? colDiv.insertBefore(ind, addB) : colDiv.appendChild(ind)
   })
 
   colDiv.addEventListener('dragleave', e => {
@@ -412,6 +457,7 @@ function crearKanbanCol(col, items, isLocked) {
     if (!todo) return
 
     if (isLocked) {
+      // Move to Closed — keep visible THIS session only
       todo.kanban_column_id = col.id
       todo.status = 'closed'
       todo.completed_at = new Date().toISOString()
@@ -427,6 +473,7 @@ function crearKanbanCol(col, items, isLocked) {
       return
     }
 
+    // Move to regular kanban column
     const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
     todosList = todosList.filter(t => t.id !== draggedTodo)
     todo.kanban_column_id = col.id
@@ -461,27 +508,25 @@ function iniciarTouchDragTodo(el, todo) {
   if (!handle) return
 
   let startY = 0
-  let startX = 0
   let clone = null
   let isDragging = false
 
   handle.addEventListener('touchstart', e => {
     e.stopPropagation()
     startY = e.touches[0].clientY
-    startX = e.touches[0].clientX
     isDragging = false
 
     setTimeout(() => {
       isDragging = true
       el.classList.add('dragging')
       clone = el.cloneNode(true)
+      const rect = el.getBoundingClientRect()
       clone.style.cssText = `
         position:fixed;z-index:1000;pointer-events:none;
-        width:${el.offsetWidth}px;opacity:0.85;
+        width:${rect.width}px;opacity:0.85;
         background:var(--bg2);border-radius:8px;
         box-shadow:0 4px 20px rgba(0,0,0,0.15);
-        top:${el.getBoundingClientRect().top}px;
-        left:${el.getBoundingClientRect().left}px;
+        top:${rect.top}px;left:${rect.left}px;
       `
       document.body.appendChild(clone)
     }, 150)
@@ -491,17 +536,15 @@ function iniciarTouchDragTodo(el, todo) {
     if (!isDragging || !clone) return
     e.preventDefault()
     const dy = e.touches[0].clientY - startY
-    const currentTop = el.getBoundingClientRect().top + dy
-    clone.style.top = `${currentTop}px`
+    const rect = el.getBoundingClientRect()
+    clone.style.top = `${rect.top + dy}px`
 
-    // Find element under touch
     clone.style.display = 'none'
     const elUnder = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
     clone.style.display = ''
-
-    const targetItem = elUnder?.closest('.todo-item')
     document.querySelectorAll('.todo-item.drag-over').forEach(i => i.classList.remove('drag-over'))
-    if (targetItem && targetItem !== el) targetItem.classList.add('drag-over')
+    const target = elUnder?.closest('.todo-item')
+    if (target && target !== el) target.classList.add('drag-over')
   }, { passive: false })
 
   handle.addEventListener('touchend', async e => {
@@ -510,20 +553,16 @@ function iniciarTouchDragTodo(el, todo) {
     el.classList.remove('dragging')
     if (clone) { clone.remove(); clone = null }
 
-    document.querySelectorAll('.todo-item.drag-over').forEach(async target => {
+    const targets = document.querySelectorAll('.todo-item.drag-over')
+    for (const target of targets) {
       target.classList.remove('drag-over')
-      if (target === el) return
-
+      if (target === el) continue
       const zona = document.getElementById('todos-zona')
-      if (!zona) return
-
+      if (!zona) continue
       const rect = target.getBoundingClientRect()
       const insertBefore = e.changedTouches[0].clientY < rect.top + rect.height / 2
-
       if (insertBefore) zona.insertBefore(el, target)
       else zona.insertBefore(el, target.nextSibling)
-
-      // Save order
       const items = [...zona.querySelectorAll('.todo-item')]
       const fromIdx = todosList.findIndex(t => t.id === todo.id)
       const toIdx = items.indexOf(el)
@@ -533,7 +572,7 @@ function iniciarTouchDragTodo(el, todo) {
         todosList.forEach((t, i) => t.sort_order = i)
         await Promise.all(todosList.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)))
       }
-    })
+    }
   }, { passive: true })
 }
 
@@ -542,27 +581,25 @@ function iniciarTouchDragKanban(card, todo) {
   let startX = 0
   let clone = null
   let isDragging = false
-  let sourceCol = null
 
   card.addEventListener('touchstart', e => {
     e.stopPropagation()
     startY = e.touches[0].clientY
     startX = e.touches[0].clientX
-    sourceCol = card.closest('.kanban-col')
     isDragging = false
 
     setTimeout(() => {
       isDragging = true
       draggedTodo = todo.id
       card.style.opacity = '0.4'
+      const rect = card.getBoundingClientRect()
       clone = card.cloneNode(true)
       clone.style.cssText = `
         position:fixed;z-index:1000;pointer-events:none;
-        width:${card.offsetWidth}px;opacity:0.9;
+        width:${rect.width}px;opacity:0.9;
         background:var(--bg);border-radius:8px;
         box-shadow:0 4px 20px rgba(0,0,0,0.2);
-        top:${card.getBoundingClientRect().top}px;
-        left:${card.getBoundingClientRect().left}px;
+        top:${rect.top}px;left:${rect.left}px;
       `
       document.body.appendChild(clone)
     }, 150)
@@ -573,19 +610,17 @@ function iniciarTouchDragKanban(card, todo) {
     e.preventDefault()
     const dy = e.touches[0].clientY - startY
     const dx = e.touches[0].clientX - startX
-    clone.style.top = `${card.getBoundingClientRect().top + dy}px`
-    clone.style.left = `${card.getBoundingClientRect().left + dx}px`
+    const rect = card.getBoundingClientRect()
+    clone.style.top = `${rect.top + dy}px`
+    clone.style.left = `${rect.left + dx}px`
 
     clone.style.display = 'none'
     const elUnder = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
     clone.style.display = ''
 
-    // Highlight target col
     document.querySelectorAll('.kanban-col').forEach(c => c.style.outline = '')
     const targetCol = elUnder?.closest('.kanban-col')
-    if (targetCol && targetCol !== sourceCol) {
-      targetCol.style.outline = '2px solid var(--accent)'
-    }
+    if (targetCol) targetCol.style.outline = '2px solid var(--accent)'
   }, { passive: false })
 
   card.addEventListener('touchend', async e => {
@@ -596,7 +631,6 @@ function iniciarTouchDragKanban(card, todo) {
     document.querySelectorAll('.kanban-col').forEach(c => c.style.outline = '')
 
     const touch = e.changedTouches[0]
-    clone = null
     const elUnder = document.elementFromPoint(touch.clientX, touch.clientY)
     const targetCol = elUnder?.closest('.kanban-col')
 
@@ -647,12 +681,12 @@ function renderReporte(modo) {
 
   const isOpen = !reporteOculto
 
-  // Active: oldest first
+  // Active: oldest first (most days open at top)
   const activos = todosList
     .filter(t => !['done', 'closed', 'archived'].includes(t.status))
     .sort((a, b) => (diasEntre(b.started_at, null) || 0) - (diasEntre(a.started_at, null) || 0))
 
-  // Closed/done: most recent first
+  // Closed/done/archived: most recent first
   const cerrados = todosList
     .filter(t => ['done', 'closed', 'archived'].includes(t.status))
     .sort((a, b) =>
@@ -690,7 +724,6 @@ function renderReporte(modo) {
 
       const diasLabel = dias !== null ? (isClosed ? `${dias}d` : `${dias}d open`) : '—'
       const diasClass = isClosed ? 'ok' : (dias !== null && dias > 7 ? 'vencido' : '')
-
       const dotClass = ['closed', 'archived'].includes(todo.status) ? 'closed'
         : todo.status === 'done' ? 'done'
         : todo.status === 'in_progress' ? 'in_progress'
@@ -752,7 +785,6 @@ function crearKanbanCard(todo, colId, isLocked = false, isSource = false) {
   `
 
   if (!isLocked) {
-    // Desktop drag
     card.draggable = true
     card.style.cursor = 'grab'
     card.addEventListener('dragstart', e => {
@@ -766,7 +798,6 @@ function crearKanbanCard(todo, colId, isLocked = false, isSource = false) {
       draggedTodo = null
       document.querySelectorAll('.drop-indicator').forEach(el => el.remove())
     })
-
     if (!isSource) {
       card.addEventListener('click', e => {
         if (e.target.classList.contains('kanban-drag-handle')) return
@@ -774,8 +805,6 @@ function crearKanbanCard(todo, colId, isLocked = false, isSource = false) {
         abrirTodoCard(todo, card)
       })
     }
-
-    // Mobile touch drag
     iniciarTouchDragKanban(card, todo)
   }
 
@@ -862,9 +891,11 @@ function limpiarIndicadores(container) {
 
 async function agregarTodo() {
   const input = document.getElementById('todo-input')
+  if (!input) return
   const texto = input.value.trim()
   if (!texto) return
-  const { data } = await db.from('todos').insert({
+
+  const { data, error } = await db.from('todos').insert({
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: null,
@@ -872,9 +903,13 @@ async function agregarTodo() {
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
   }).select().single()
+
+  if (error) { console.error('Error adding todo:', error); return }
+
   if (data) {
     todosList.push(data)
     input.value = ''
+    input.focus()
     renderTodos()
     await cargarTodosSummary()
   }
@@ -923,7 +958,7 @@ async function agregarTodoEnColumna(colId) {
   const texto = prompt('Task name:')
   if (!texto) return
   const colItems = todosList.filter(t => t.kanban_column_id === colId)
-  const { data } = await db.from('todos').insert({
+  const { data, error } = await db.from('todos').insert({
     text_enc: cifrar(texto),
     status: 'in_progress',
     kanban_column_id: colId,
@@ -931,6 +966,9 @@ async function agregarTodoEnColumna(colId) {
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
   }).select().single()
+
+  if (error) { console.error('Error adding todo to column:', error); return }
+
   if (data) {
     todosList.push(data)
     renderTodos()
@@ -1037,8 +1075,10 @@ async function verVersionesTodos() {
 // ==================== MODO ====================
 
 function setTodosMode(mode) {
-  // Archive closed items when switching modes
-  if (todosMode === 'kanban' && mode === 'list') limpiarClosedThisSession()
+  // Archive closed when switching from kanban to list
+  if (todosMode === 'kanban' && mode === 'list') {
+    archivarClosedYRefrescar()
+  }
 
   todosMode = mode
   const tabList = document.getElementById('tab-list')
