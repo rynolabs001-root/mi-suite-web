@@ -65,6 +65,8 @@ function cerrarTodos() {
 // ==================== CARGAR ====================
 
 async function cargarTodos() {
+  if (!notaActual) return
+
   const { data: cols } = await db
     .from('kanban_columns')
     .select('*')
@@ -87,6 +89,7 @@ async function cargarTodos() {
 }
 
 async function crearColumnasDefault() {
+  if (!notaActual) return
   const defaults = ['To Do', 'In Progress', 'Done']
   const inserts = defaults.map((title, i) => ({
     note_id: notaActual.id,
@@ -96,6 +99,13 @@ async function crearColumnasDefault() {
   }))
   const { data } = await db.from('kanban_columns').insert(inserts).select()
   kanbanColumns = data || []
+}
+
+// ==================== RENDER ====================
+
+function renderTodos() {
+  if (todosMode === 'list') renderLista()
+  else renderKanban()
 }
 
 // ==================== UTILIDADES FECHA ====================
@@ -118,13 +128,6 @@ function diasVencidos(todo) {
   return diasEntre(todo.started_at, null) || 0
 }
 
-// ==================== RENDER ====================
-
-function renderTodos() {
-  if (todosMode === 'list') renderLista()
-  else renderKanban()
-}
-
 // ==================== LISTA ====================
 
 function renderLista() {
@@ -136,7 +139,6 @@ function renderLista() {
   body.style.padding = '0'
   body.innerHTML = ''
 
-  // Zona superior 70%
   const zona = document.createElement('div')
   zona.id = 'todos-zona'
   zona.style.padding = '10px'
@@ -149,7 +151,8 @@ function renderLista() {
     .filter(t => t.status !== 'done')
     .sort((a, b) => diasVencidos(b) - diasVencidos(a))
 
-  const hechos = todosList.filter(t => t.status === 'done')
+  const hechos = todosList
+    .filter(t => t.status === 'done')
     .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
 
   const todos = [...pendientes, ...hechos]
@@ -189,7 +192,6 @@ function renderLista() {
     draggedTodo = null
   })
 
-  // Zona inferior 30% — reporte
   const reporteWrap = renderReporte('lista')
   reporteWrap.style.flex = '3'
   reporteWrap.style.minHeight = '0'
@@ -246,7 +248,6 @@ function renderKanban() {
   body.style.overflowY = 'hidden'
   body.innerHTML = ''
 
-  // Zona superior 70% — columnas kanban
   const zona = document.createElement('div')
   zona.style.display = 'flex'
   zona.style.gap = '8px'
@@ -258,12 +259,24 @@ function renderKanban() {
   zona.style.minHeight = '0'
   body.appendChild(zona)
 
+  if (!kanbanColumns.length) {
+    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:2rem;">No columns yet. Add tasks first.</p>'
+    const reporteWrap = renderReporte('kanban')
+    reporteWrap.style.flex = '3'
+    reporteWrap.style.minHeight = '0'
+    reporteWrap.style.display = 'flex'
+    reporteWrap.style.flexDirection = 'column'
+    body.appendChild(reporteWrap)
+    return
+  }
+
+  const esOwner = !notaActual || notaActual?.author_id === sesionActual?.user?.id
+
   kanbanColumns.forEach(col => {
     const items = todosList
       .filter(t => t.kanban_column_id === col.id)
       .sort((a, b) => a.sort_order - b.sort_order)
 
-    const esOwner = notaActual.author_id === sesionActual.user.id
     const colDiv = document.createElement('div')
     colDiv.className = 'kanban-col'
     colDiv.dataset.colId = col.id
@@ -340,7 +353,7 @@ function renderKanban() {
     zona.appendChild(colDiv)
   })
 
-  if (kanbanColumns.length < 6 && notaActual.author_id === sesionActual.user.id) {
+  if (kanbanColumns.length < 6 && esOwner) {
     const addCol = document.createElement('button')
     addCol.className = 'kanban-add-col'
     addCol.textContent = '+ Add column'
@@ -348,7 +361,6 @@ function renderKanban() {
     zona.appendChild(addCol)
   }
 
-  // Zona inferior 30% — reporte
   const reporteWrap = renderReporte('kanban')
   reporteWrap.style.flex = '3'
   reporteWrap.style.minHeight = '0'
@@ -357,7 +369,7 @@ function renderKanban() {
   body.appendChild(reporteWrap)
 }
 
-// ==================== REPORTE INCREMENTAL ====================
+// ==================== REPORTE ====================
 
 function renderReporte(modo) {
   const wrap = document.createElement('div')
@@ -368,12 +380,10 @@ function renderReporte(modo) {
 
   const isOpen = !reporteOculto
 
-  // Pendientes: más antiguos primero
   const pendientes = todosList
     .filter(t => t.status !== 'done')
     .sort((a, b) => diasEntre(b.started_at, null) - diasEntre(a.started_at, null))
 
-  // Cerrados: más recientes primero
   const cerrados = todosList
     .filter(t => t.status === 'done')
     .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
@@ -395,7 +405,6 @@ function renderReporte(modo) {
 
   const bodyEl = document.createElement('div')
   bodyEl.className = `reporte-body ${isOpen ? 'open' : ''}`
-  bodyEl.id = `reporte-body-${modo}`
   bodyEl.style.overflowY = 'auto'
   bodyEl.style.flex = '1'
   bodyEl.style.minHeight = '0'
@@ -440,23 +449,15 @@ function renderReporte(modo) {
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
+  document.querySelectorAll('.reporte-body').forEach(body => {
+    body.classList.toggle('open', !reporteOculto)
+    if (!reporteOculto) body.style.maxHeight = ''
+  })
+  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
+    toggle.classList.toggle('open', !reporteOculto)
+  })
 
   document.querySelectorAll('.reporte-wrap').forEach(wrap => {
-    const bodyEl = wrap.querySelector('.reporte-body')
-    const toggle = wrap.querySelector('.reporte-toggle')
-    const zona = wrap.parentElement?.querySelector('#todos-zona') ||
-                 wrap.previousElementSibling
-
-    if (bodyEl) {
-      bodyEl.classList.toggle('open', !reporteOculto)
-      // Cuando está colapsado flex=0, cuando abierto flex=1
-      bodyEl.style.flex = reporteOculto ? '0' : '1'
-      bodyEl.style.overflow = reporteOculto ? 'hidden' : 'auto'
-    }
-
-    if (toggle) toggle.classList.toggle('open', !reporteOculto)
-
-    // El wrap toma el 30% cuando abierto, 0 cuando colapsado
     wrap.style.flex = reporteOculto ? '0' : '3'
     wrap.style.overflow = reporteOculto ? 'hidden' : ''
   })
@@ -591,21 +592,31 @@ async function agregarTodo() {
   if (!texto) return
 
   const colDefault = kanbanColumns[0]?.id || null
+  const noteId = notaActual?.id || null
 
-  const { data } = await db.from('todos').insert({
-    note_id: notaActual.id,
+  if (!noteId && !colDefault) {
+    alert('Please select a note first or open To-Dos from the sidebar.')
+    return
+  }
+
+  const insertData = {
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: colDefault,
     sort_order: todosList.length,
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
-  }).select().single()
+  }
+
+  if (noteId) insertData.note_id = noteId
+
+  const { data } = await db.from('todos').insert(insertData).select().single()
 
   if (data) {
     todosList.push(data)
     input.value = ''
     renderTodos()
+    await cargarTodosSummary()
   }
 }
 
@@ -621,6 +632,7 @@ async function toggleTodoStatus(id) {
   todo.status = nuevo
   todo.completed_at = updates.completed_at
   renderTodos()
+  await cargarTodosSummary()
 }
 
 async function actualizarTextoTodo(id, texto) {
@@ -636,7 +648,7 @@ async function eliminarTodo(id) {
 
   await db.from('todos_trash').insert({
     todo_id: id,
-    note_id: notaActual.id,
+    note_id: todo.note_id || notaActual?.id,
     text_enc: todo.text_enc,
     status: todo.status,
     kanban_column_id: todo.kanban_column_id,
@@ -652,6 +664,7 @@ async function eliminarTodo(id) {
   _expandedCard = null
   _expandedTodo = null
   renderTodos()
+  await cargarTodosSummary()
 }
 
 async function agregarTodoEnColumna(colId) {
@@ -659,20 +672,25 @@ async function agregarTodoEnColumna(colId) {
   if (!texto) return
 
   const colItems = todosList.filter(t => t.kanban_column_id === colId)
+  const noteId = notaActual?.id || null
 
-  const { data } = await db.from('todos').insert({
-    note_id: notaActual.id,
+  const insertData = {
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: colId,
     sort_order: colItems.length,
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
-  }).select().single()
+  }
+
+  if (noteId) insertData.note_id = noteId
+
+  const { data } = await db.from('todos').insert(insertData).select().single()
 
   if (data) {
     todosList.push(data)
     renderTodos()
+    await cargarTodosSummary()
   }
 }
 
@@ -681,12 +699,15 @@ async function agregarColumna() {
   const titulo = prompt('Column name:')
   if (!titulo) return
 
-  const { data } = await db.from('kanban_columns').insert({
-    note_id: notaActual.id,
+  const noteId = notaActual?.id || null
+  const insertData = {
     title: titulo,
     sort_order: kanbanColumns.length,
     created_by: sesionActual.user.id
-  }).select().single()
+  }
+  if (noteId) insertData.note_id = noteId
+
+  const { data } = await db.from('kanban_columns').insert(insertData).select().single()
 
   if (data) {
     kanbanColumns.push(data)
@@ -734,22 +755,20 @@ async function guardarVersionTodos() {
     completed_at: t.completed_at
   }))
 
-  const { error } = await db.from('todos_versions').insert({
-    note_id: notaActual.id,
-    snapshot,
-    saved_by: sesionActual.user.id
-  })
+  const noteId = notaActual?.id || null
+  const insertData = { snapshot, saved_by: sesionActual.user.id }
+  if (noteId) insertData.note_id = noteId
 
+  const { error } = await db.from('todos_versions').insert(insertData)
   if (error) return alert('Error saving version.')
   alert('To-Do version saved.')
 }
 
 async function verVersionesTodos() {
-  const { data } = await db
-    .from('todos_versions')
-    .select('*')
-    .eq('note_id', notaActual.id)
-    .order('saved_at', { ascending: false })
+  let query = db.from('todos_versions').select('*').order('saved_at', { ascending: false })
+  if (notaActual?.id) query = query.eq('note_id', notaActual.id)
+
+  const { data } = await query
 
   if (!data?.length) return alert('No saved versions.')
 
@@ -761,10 +780,12 @@ async function verVersionesTodos() {
   if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
   if (!confirm('Restore this version? Current tasks will be replaced.')) return
 
-  await db.from('todos').delete().eq('note_id', notaActual.id)
+  if (notaActual?.id) {
+    await db.from('todos').delete().eq('note_id', notaActual.id)
+  }
 
   const restores = data[idx].snapshot.map(t => ({
-    note_id: notaActual.id,
+    note_id: notaActual?.id || null,
     text_enc: cifrar(t.text),
     status: t.status,
     kanban_column_id: t.kanban_column_id,
@@ -775,7 +796,13 @@ async function verVersionesTodos() {
   }))
 
   await db.from('todos').insert(restores)
-  await cargarTodos()
+
+  if (notaActual) {
+    await cargarTodos()
+  } else {
+    await cargarTodosGlobal()
+  }
+
   renderTodos()
   alert('Version restored.')
 }
@@ -784,7 +811,9 @@ async function verVersionesTodos() {
 
 function setTodosMode(mode) {
   todosMode = mode
-  document.getElementById('tab-list').classList.toggle('active', mode === 'list')
-  document.getElementById('tab-kanban').classList.toggle('active', mode === 'kanban')
+  const tabList = document.getElementById('tab-list')
+  const tabKanban = document.getElementById('tab-kanban')
+  if (tabList) tabList.classList.toggle('active', mode === 'list')
+  if (tabKanban) tabKanban.classList.toggle('active', mode === 'kanban')
   renderTodos()
 }

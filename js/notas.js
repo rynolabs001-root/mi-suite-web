@@ -74,16 +74,17 @@ function seleccionarLibreta(libreta, el) {
 async function cargarTodosSummary() {
   const { data: allTodos } = await db
     .from('todos')
-    .select('id, status, kanban_column_id, note_id')
+    .select('id, status, kanban_column_id')
 
   const { data: allCols } = await db
     .from('kanban_columns')
-    .select('id, title, note_id')
+    .select('id, title')
     .order('sort_order')
 
   if (!allTodos || !allCols) return
 
   const pendientes = allTodos.filter(t => t.status !== 'done').length
+  const total = allTodos.length
 
   const badge = document.getElementById('todos-total-badge')
   if (badge) {
@@ -91,7 +92,13 @@ async function cargarTodosSummary() {
     badge.className = 'todos-summary-total' + (pendientes > 0 ? ' warn' : '')
   }
 
-  // Agrupar por título de columna
+  const colsList = document.getElementById('todos-cols-list')
+  if (!colsList) return
+  colsList.innerHTML = ''
+
+  const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
+
+  // Agrupar columnas unicas por titulo
   const colMap = {}
   allCols.forEach(col => {
     if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
@@ -104,54 +111,62 @@ async function cargarTodosSummary() {
     })
   })
 
-  const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
-  const colsList = document.getElementById('todos-cols-list')
-  if (!colsList) return
-
-  colsList.innerHTML = ''
-
   const uniqueCols = Object.values(colMap)
+
   if (!uniqueCols.length) {
     colsList.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No tasks yet.</div>'
     return
   }
 
-  // Etiqueta To-Do's lista
-  const labelLista = document.createElement('div')
-  labelLista.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
-  labelLista.textContent = 'Tasks'
-  colsList.appendChild(labelLista)
+  // ---- Seccion TO-DO ----
+  const labelTodos = document.createElement('div')
+  labelTodos.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
+  labelTodos.textContent = 'To-Do List'
+  colsList.appendChild(labelTodos)
 
-  uniqueCols.forEach((col, i) => {
-    const row = document.createElement('div')
-    row.className = 'todos-col-row'
-    row.innerHTML = `
-      <div class="todos-col-dot" style="background:${colColors[i % colColors.length]};"></div>
-      <span class="todos-col-name">${col.title}</span>
-      <span class="todos-col-count">${col.count}</span>
-    `
-    row.onclick = () => {
-      if (typeof esMobile === 'function' && esMobile()) {
-        mobileNavSelect('todos')
-      } else {
-        abrirTodosGlobal()
-      }
+  const pendientesRow = document.createElement('div')
+  pendientesRow.className = 'todos-col-row'
+  pendientesRow.innerHTML = `
+    <div class="todos-col-dot" style="background:#ff9f0a;"></div>
+    <span class="todos-col-name">Pending</span>
+    <span class="todos-col-count">${pendientes}</span>
+  `
+  pendientesRow.onclick = () => {
+    if (typeof esMobile === 'function' && esMobile()) {
+      mobileNavSelect('todos')
+    } else {
+      abrirTodosGlobalModo('list')
     }
-    colsList.appendChild(row)
-  })
+  }
+  colsList.appendChild(pendientesRow)
 
-  // Separador visual
+  const completadosRow = document.createElement('div')
+  completadosRow.className = 'todos-col-row'
+  completadosRow.innerHTML = `
+    <div class="todos-col-dot" style="background:#34c759;"></div>
+    <span class="todos-col-name">Done</span>
+    <span class="todos-col-count">${total - pendientes}</span>
+  `
+  completadosRow.onclick = () => {
+    if (typeof esMobile === 'function' && esMobile()) {
+      mobileNavSelect('todos')
+    } else {
+      abrirTodosGlobalModo('list')
+    }
+  }
+  colsList.appendChild(completadosRow)
+
+  // ---- Separador ----
   const sep = document.createElement('div')
   sep.style.cssText = 'height:1px;background:var(--border);margin:6px 8px 2px;'
   colsList.appendChild(sep)
 
-  // Etiqueta Kanban
+  // ---- Seccion KANBAN ----
   const labelKanban = document.createElement('div')
   labelKanban.style.cssText = 'padding:4px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
   labelKanban.textContent = 'Kanban'
   colsList.appendChild(labelKanban)
 
-  // Resumen kanban por columna
   uniqueCols.forEach((col, i) => {
     const row = document.createElement('div')
     row.className = 'todos-col-row'
@@ -164,7 +179,7 @@ async function cargarTodosSummary() {
       if (typeof esMobile === 'function' && esMobile()) {
         mobileNavSelect('todos')
       } else {
-        abrirTodosGlobal()
+        abrirTodosGlobalModo('kanban')
       }
     }
     colsList.appendChild(row)
@@ -197,6 +212,13 @@ async function abrirTodosGlobal() {
 
   await cargarTodosGlobal()
   renderTodos()
+}
+
+async function abrirTodosGlobalModo(modo) {
+  await abrirTodosGlobal()
+  if (typeof setTodosMode === 'function') {
+    setTimeout(() => setTodosMode(modo), 150)
+  }
 }
 
 async function cargarTodosGlobal() {
@@ -473,17 +495,17 @@ async function registrarActividad(accion) {
 
 function iniciarBusqueda() {
   const input = document.getElementById('buscar-notas')
-  if (!input) return
-  input.addEventListener('input', () => {
-    const termino = input.value.toLowerCase()
-    document.querySelectorAll('.nota-item').forEach(el => {
-      const titulo = el.querySelector('.nota-item-titulo')?.textContent.toLowerCase() || ''
-      const preview = el.querySelector('.nota-item-preview')?.textContent.toLowerCase() || ''
-      el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
+  if (input) {
+    input.addEventListener('input', () => {
+      const termino = input.value.toLowerCase()
+      document.querySelectorAll('.nota-item').forEach(el => {
+        const titulo = el.querySelector('.nota-item-titulo')?.textContent.toLowerCase() || ''
+        const preview = el.querySelector('.nota-item-preview')?.textContent.toLowerCase() || ''
+        el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
+      })
     })
-  })
+  }
 
-  // Busqueda global en sidebar
   const sidebarSearch = document.getElementById('sidebar-search')
   if (sidebarSearch) {
     sidebarSearch.addEventListener('input', () => {
@@ -494,7 +516,6 @@ function iniciarBusqueda() {
 
 async function buscarGlobal(termino) {
   if (!termino) {
-    // Si se borra la busqueda, restaurar vista normal
     document.getElementById('libreta-nombre').textContent = libretaActual
       ? descifrar(libretaActual.name_enc)
       : 'Select a notebook'
@@ -543,7 +564,6 @@ async function buscarGlobal(termino) {
     lista.appendChild(li)
   })
 
-  // En mobile mostrar panel de notas con resultados
   if (typeof esMobile === 'function' && esMobile()) {
     mobileNavSelect('notas')
   }
