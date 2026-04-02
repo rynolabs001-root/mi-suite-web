@@ -20,29 +20,28 @@
 </nav>
 
 <!-- Panel To-Do's -->
-  <section class="todos-panel" id="todos-panel">
-    <div class="todos-header">
-      <span class="todos-title">To-Do's</span>
-      <div class="todos-header-actions">
-        <button onclick="guardarVersionTodos()" title="Save version"
-          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">&#128190;</button>
-        <button onclick="verVersionesTodos()" title="History"
-          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">&#128336;</button>
-        <div class="mode-tabs">
-          <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
-          <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
-        </div>
-        <button onclick="cerrarTodos()"
-          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;">✕</button>
+<section class="todos-panel" id="todos-panel">
+  <div class="todos-header">
+    <span class="todos-title">To-Do's</span>
+    <div class="todos-header-actions">
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
+        <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
+      </div>
+      <div class="todos-icon-btns">
+        <button onclick="guardarVersionTodos()" title="Save version" class="todos-icon-btn">&#128190;</button>
+        <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">&#128336;</button>
+        <button onclick="cerrarTodos()" title="Close" class="todos-icon-btn">&#x2715;</button>
       </div>
     </div>
-    <div class="todos-body" id="todos-body"></div>
-    <div class="todo-add">
-      <input class="todo-input" id="todo-input" placeholder="Add a task..."
-        onkeydown="if(event.key==='Enter') agregarTodo()">
-      <button class="todo-add-btn" onclick="agregarTodo()">+</button>
-    </div>
-  </section>
+  </div>
+  <div class="todos-body" id="todos-body"></div>
+  <div class="todo-add">
+    <input class="todo-input" id="todo-input" placeholder="Add a task..."
+      onkeydown="if(event.key==='Enter') agregarTodo()">
+    <button class="todo-add-btn" onclick="agregarTodo()">+</button>
+  </div>
+</section>
 
 <div class="notas-layout">
 

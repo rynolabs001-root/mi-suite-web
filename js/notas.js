@@ -23,22 +23,25 @@ async function cargarLibretas() {
   lista.innerHTML = ''
 
   if (!data.length) {
-    lista.innerHTML = '<li class="libreta-item loading">Sin libretas aún.</li>'
+    lista.innerHTML = '<li class="libreta-item loading">No notebooks yet.</li>'
     return
   }
 
   data.forEach(libreta => {
     const li = document.createElement('li')
     li.className = 'libreta-item'
-    li.textContent = descifrar(libreta.name_enc)
     li.dataset.id = libreta.id
+    li.innerHTML = `
+      <div class="libreta-dot"></div>
+      <span>${descifrar(libreta.name_enc)}</span>
+    `
     li.onclick = () => seleccionarLibreta(libreta, li)
     lista.appendChild(li)
   })
 }
 
 async function nuevaLibreta() {
-  const nombre = prompt('Nombre de la nueva libreta:')
+  const nombre = prompt('Notebook name:')
   if (!nombre) return
 
   const { error } = await db.from('notebooks').insert({
@@ -47,7 +50,7 @@ async function nuevaLibreta() {
     is_private: true
   })
 
-  if (error) return alert('Error al crear libreta.')
+  if (error) return alert('Error creating notebook.')
   await cargarLibretas()
 }
 
@@ -75,7 +78,7 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
   lista.innerHTML = ''
 
   if (!data.length) {
-    lista.innerHTML = '<li class="nota-empty">Sin notas en esta libreta.</li>'
+    lista.innerHTML = '<li class="nota-empty">No notes in this notebook.</li>'
     return
   }
 
@@ -86,9 +89,11 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
     li.innerHTML = `
       <div class="nota-item-titulo">
         ${nota.is_pinned ? '<span class="nota-pin">📌</span>' : ''}
-        ${descifrar(nota.title_enc) || 'Sin título'}
+        ${descifrar(nota.title_enc) || 'Untitled'}
       </div>
-      <div class="nota-item-preview">${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}</div>
+      <div class="nota-item-preview">
+        ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
+      </div>
       <div class="nota-item-fecha">${formatearFecha(nota.updated_at)}</div>
     `
     li.onclick = () => abrirNota(nota, li)
@@ -97,17 +102,17 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
 }
 
 async function nuevaNota() {
-  if (!libretaActual) return alert('Selecciona una libreta primero.')
+  if (!libretaActual) return alert('Select a notebook first.')
 
   const { data, error } = await db.from('notes').insert({
     notebook_id: libretaActual.id,
     author_id: sesionActual.user.id,
-    title_enc: cifrar('Nueva nota'),
+    title_enc: cifrar('New note'),
     content_enc: cifrar(''),
     is_pinned: false
   }).select().single()
 
-  if (error) return alert('Error al crear nota.')
+  if (error) return alert('Error creating note.')
   await cargarNotas(libretaActual.id)
   abrirNota(data)
 }
@@ -124,8 +129,11 @@ function abrirNota(nota, el) {
 
   document.getElementById('nota-titulo').value = descifrar(nota.title_enc) || ''
   document.getElementById('nota-contenido').innerHTML = descifrar(nota.content_enc) || ''
-  document.getElementById('nota-fecha').textContent = 'Modificado: ' + formatearFecha(nota.updated_at)
+  document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(nota.updated_at)
   document.getElementById('btn-pin').style.opacity = nota.is_pinned ? '1' : '0.4'
+
+  const contenidoInicial = document.getElementById('nota-contenido').innerHTML
+  historialSesion.push(contenidoInicial)
 }
 
 async function guardarNota() {
@@ -140,16 +148,16 @@ async function guardarNota() {
     updated_at: new Date().toISOString()
   }).eq('id', notaActual.id)
 
-  if (error) return alert('Error al guardar.')
+  if (error) return alert('Error saving note.')
 
-  await registrarActividad('guardó la nota')
+  await registrarActividad('saved note')
   await cargarNotas(libretaActual.id)
-  document.getElementById('nota-fecha').textContent = 'Modificado: ' + formatearFecha(new Date())
+  document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(new Date())
 }
 
 async function eliminarNota() {
   if (!notaActual) return
-  if (!confirm('¿Mover esta nota a la papelera?')) return
+  if (!confirm('Move this note to trash?')) return
 
   await db.from('trash').insert({
     note_id: notaActual.id,
@@ -161,6 +169,11 @@ async function eliminarNota() {
   notaActual = null
   document.getElementById('editor-placeholder').style.display = 'flex'
   document.getElementById('editor-contenido').style.display = 'none'
+
+  if (typeof todosPanel !== 'undefined' && todosPanel) {
+    cerrarTodos()
+  }
+
   await cargarNotas(libretaActual.id)
 }
 
@@ -195,7 +208,11 @@ function highlight(color) {
   const range = sel.getRangeAt(0)
   const mark = document.createElement('mark')
   mark.className = color === 'yellow' ? 'hl-yellow' : 'hl-pink'
-  range.surroundContents(mark)
+  try {
+    range.surroundContents(mark)
+  } catch(e) {
+    console.warn('Could not highlight selection.')
+  }
   sel.removeAllRanges()
 }
 
@@ -212,7 +229,7 @@ function atajosTeclado(e) {
 function onContenidoChange() {
   const contenido = document.getElementById('nota-contenido').innerHTML
   historialSesion.push(contenido)
-  if (historialSesion.length > 50) historialSesion.shift()
+  if (historialSesion.length > 100) historialSesion.shift()
 }
 
 function deshacer() {
@@ -229,14 +246,15 @@ async function guardarVersion() {
   const titulo = document.getElementById('nota-titulo').value
   const contenido = document.getElementById('nota-contenido').innerHTML
 
-  await db.from('note_versions').insert({
+  const { error } = await db.from('note_versions').insert({
     note_id: notaActual.id,
     title_enc: cifrar(titulo),
     content_enc: cifrar(contenido),
     edited_by: sesionActual.user.id
   })
 
-  alert('Versión guardada correctamente.')
+  if (error) return alert('Error saving version.')
+  alert('Version saved successfully.')
 }
 
 async function verVersiones() {
@@ -247,22 +265,22 @@ async function verVersiones() {
     .eq('note_id', notaActual.id)
     .order('saved_at', { ascending: false })
 
-  if (!data?.length) return alert('No hay versiones guardadas para esta nota.')
+  if (!data?.length) return alert('No saved versions for this note.')
 
   const lista = data.map((v, i) =>
     `${i + 1}. ${formatearFecha(v.saved_at)}`
   ).join('\n')
 
-  const seleccion = prompt(`Versiones disponibles:\n${lista}\n\nEscribe el número para restaurar (o cancela):`)
+  const seleccion = prompt(`Available versions:\n${lista}\n\nEnter number to restore (or cancel):`)
   if (!seleccion) return
 
   const idx = parseInt(seleccion) - 1
-  if (isNaN(idx) || !data[idx]) return alert('Número inválido.')
+  if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
 
   const version = data[idx]
   document.getElementById('nota-titulo').value = descifrar(version.title_enc)
   document.getElementById('nota-contenido').innerHTML = descifrar(version.content_enc)
-  alert('Versión restaurada. Guarda la nota para confirmar.')
+  alert('Version restored. Save the note to confirm.')
 }
 
 // ==================== ACTIVIDAD ====================
@@ -283,8 +301,8 @@ function iniciarBusqueda() {
   input.addEventListener('input', () => {
     const termino = input.value.toLowerCase()
     document.querySelectorAll('.nota-item').forEach(el => {
-      const titulo = el.querySelector('.nota-item-titulo').textContent.toLowerCase()
-      const preview = el.querySelector('.nota-item-preview').textContent.toLowerCase()
+      const titulo = el.querySelector('.nota-item-titulo')?.textContent.toLowerCase() || ''
+      const preview = el.querySelector('.nota-item-preview')?.textContent.toLowerCase() || ''
       el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
     })
   })
@@ -316,304 +334,9 @@ function formatearFecha(fecha) {
   })
 }
 
-function abrirAdjuntos() { alert('Módulo de adjuntos — próximamente.') }
+// ==================== MODULOS PENDIENTES ====================
+
+function abrirAdjuntos() { alert('Attachments module — coming soon.') }
 function abrirTodos() { iniciarTodos() }
-function abrirRecordatorio() { alert('Módulo de recordatorios — próximamente.') }
-function abrirColor() { alert('Selector de color — próximamente.') }
-
-/* ==================== TODOS PANEL ==================== */
-.notas-layout.with-todos {
-  grid-template-columns: 220px 280px 1fr 320px;
-}
-
-.todos-panel {
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  display: none;
-  flex-direction: column;
-  overflow: hidden;
-  height: 100%;
-  min-width: 0;
-}
-
-.todos-header {
-  padding: 14px 16px 10px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.todos-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.todos-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mode-tabs {
-  display: flex;
-  background: var(--bg3);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.mode-tab {
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--font);
-  border: none;
-  cursor: pointer;
-  color: var(--text3);
-  background: transparent;
-  transition: all 0.15s;
-}
-
-.mode-tab.active {
-  background: var(--bg2);
-  color: var(--text);
-}
-
-.todos-body {
-  flex: 1;
-  padding: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-}
-
-/* Lista */
-.todo-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 7px 10px;
-  background: var(--bg2);
-  border-radius: 8px;
-  margin-bottom: 6px;
-  border: 1px solid var(--border);
-  cursor: grab;
-}
-
-.todo-item:active { cursor: grabbing; }
-
-.todo-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border2);
-  flex-shrink: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 2px;
-  transition: all 0.15s;
-}
-
-.todo-check.done {
-  background: var(--success);
-  border-color: var(--success);
-}
-
-.todo-check.done::after {
-  content: '✓';
-  font-size: 10px;
-  color: #fff;
-  font-weight: 600;
-}
-
-.todo-text {
-  font-size: 13px;
-  color: var(--text);
-  flex: 1;
-  outline: none;
-  line-height: 1.5;
-}
-
-.todo-text.done {
-  text-decoration: line-through;
-  color: var(--text3);
-}
-
-.todo-date {
-  font-size: 11px;
-  color: var(--warning);
-  margin-top: 2px;
-}
-
-.todo-add {
-  display: flex;
-  gap: 6px;
-  padding: 10px;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.todo-input {
-  flex: 1;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border2);
-  font-size: 13px;
-  font-family: var(--font);
-  outline: none;
-  background: var(--bg2);
-  color: var(--text);
-}
-
-.todo-input:focus { border-color: var(--accent); }
-
-.todo-add-btn {
-  padding: 6px 12px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: var(--font);
-}
-
-/* Kanban */
-.todos-body.kanban-mode {
-  display: grid;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 10px;
-  align-content: start;
-}
-
-.kanban-col {
-  background: var(--bg2);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 200px;
-  max-height: calc(100vh - 200px);
-  overflow-y: auto;
-}
-
-.kanban-col-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-  flex-shrink: 0;
-}
-
-.kanban-col-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text3);
-  flex: 1;
-  outline: none;
-  cursor: text;
-}
-
-.kanban-col-count {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text3);
-  background: var(--bg3);
-  padding: 1px 6px;
-  border-radius: 99px;
-}
-
-.kanban-col-delete {
-  background: none;
-  border: none;
-  color: var(--text3);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: color 0.15s;
-}
-
-.kanban-col-delete:hover { color: var(--danger); }
-
-.kanban-card {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.5;
-  border: 1px solid var(--border);
-  cursor: grab;
-  transition: border-color 0.15s;
-}
-
-.kanban-card:active { cursor: grabbing; }
-.kanban-card:hover { border-color: var(--accent); }
-
-.kanban-card.expanded {
-  cursor: default;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
-}
-
-.kanban-card-text { font-size: 12px; color: var(--text); line-height: 1.5; }
-.kanban-card-date { font-size: 11px; color: var(--warning); margin-top: 4px; }
-
-.kanban-card-edit {
-  font-size: 12px;
-  color: var(--text);
-  line-height: 1.5;
-  outline: none;
-  min-height: 40px;
-}
-
-.kanban-add-btn {
-  background: none;
-  border: none;
-  color: var(--text3);
-  font-size: 12px;
-  font-family: var(--font);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  text-align: left;
-  transition: background 0.15s;
-  margin-top: 4px;
-}
-
-.kanban-add-btn:hover { background: var(--bg3); color: var(--text); }
-
-.kanban-add-col {
-  background: var(--bg2);
-  border: 1.5px dashed var(--border2);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 12px;
-  font-family: var(--font);
-  color: var(--text3);
-  cursor: pointer;
-  min-height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-}
-
-.kanban-add-col:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--bg3);
-}
+function abrirRecordatorio() { alert('Reminder module — coming soon.') }
+function abrirColor() { alert('Color picker — coming soon.') }

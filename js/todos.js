@@ -8,13 +8,8 @@ let draggedColumn = null
 // ==================== INICIAR ====================
 
 async function iniciarTodos() {
-  if (!notaActual) return alert('Selecciona una nota primero.')
-
-  todosPanel = document.getElementById('todos-panel')
-  const visible = todosPanel.style.display === 'flex'
-
-  if (visible) {
-    cerrarTodos()
+  if (!notaActual) {
+    alert('Please select a note first.')
     return
   }
 
