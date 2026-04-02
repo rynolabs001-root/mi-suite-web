@@ -91,13 +91,41 @@ async function aplicarColorNota(color) {
 }
 
 async function aplicarColorNotaById(notaId, color) {
-  const { error } = await db.from('notes').update({ color_id: color.id }).eq('id', notaId)
+  const { error } = await db.from('notes')
+    .update({ color_id: color.id })
+    .eq('id', notaId)
+
   if (error) return console.error(error)
+
+  // Update in-memory nota if it's the active one
   if (notaActual?.id === notaId) {
     notaActual.color_id = color.id
     aplicarColorEditor(color.bg)
   }
+
   cerrarTodosLosColorPickers()
+
+  // Update the nota item in the list immediately without full reload
+  const li = document.querySelector(`.nota-item[data-id="${notaId}"]`)
+  if (li) {
+    if (color.bg) {
+      li.style.background = color.bg
+    } else {
+      li.style.background = ''
+    }
+    // Update color btn state
+    const colorBtn = li.querySelector('.nota-color-btn')
+    if (colorBtn) colorBtn.classList.toggle('colored', !!color.bg)
+    // Update inline swatch selection
+    li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
+      s.classList.toggle('selected', s.dataset.colorId === color.id)
+    })
+    // Close inline picker
+    const inline = li.querySelector('.nota-color-inline')
+    if (inline) inline.classList.remove('open')
+  }
+
+  // Full reload to persist
   if (libretaActual) await cargarNotas(libretaActual.id)
 }
 

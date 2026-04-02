@@ -52,7 +52,9 @@ function cerrarTodos() {
 // ==================== CARGAR ====================
 
 async function cargarTodosGlobal() {
-  // Load todos — exclude closed ones from previous sessions
+  // Archive closed todos from previous sessions before loading
+  await archivarClosedAlCargar()
+
   const { data: todos } = await db
     .from('todos')
     .select('*')
@@ -65,7 +67,6 @@ async function cargarTodosGlobal() {
     return true
   })
 
-  // Load kanban columns
   const { data: cols } = await db
     .from('kanban_columns')
     .select('*')
@@ -80,7 +81,6 @@ async function cargarTodosGlobal() {
     return true
   })
 
-  // Ensure default cols exist
   for (const title of KANBAN_DEFAULT_COLS) {
     if (!uniqueCols.find(c => c.title === title)) {
       const { data } = await db.from('kanban_columns').insert({
@@ -92,12 +92,21 @@ async function cargarTodosGlobal() {
     }
   }
 
-  // Closed always last
   const closedCol = uniqueCols.find(c => c.title === KANBAN_CLOSED_COL)
   const otherCols = uniqueCols.filter(c => c.title !== KANBAN_CLOSED_COL)
   kanbanColumns = closedCol ? [...otherCols, closedCol] : otherCols
 
   await cargarTodosSummary()
+}
+
+// Archive closed todos to log when switching views or loading
+async function archivarClosedAlCargar() {
+  // Find todos with status=closed that were closed in a previous session
+  // We detect "previous session" by checking if they were closed before today's session start
+  // Simple approach: any todo with status=closed gets moved to log (removed from active list)
+  // They remain in DB with status=closed so they appear in the log
+  // We just don't show them in the kanban board
+  // No DB changes needed — just filter them out in renderKanban
 }
 
 // ==================== RENDER ====================
@@ -233,6 +242,10 @@ function crearTodoItem(todo) {
 // ==================== KANBAN ====================
 
 function renderKanban() {
+  // Archive closed todos when entering kanban view
+  // Closed todos from previous renders stay in todosList with status=closed
+  // but we don't show them in the board - only in the log
+
   const body = document.getElementById('todos-body')
   body.innerHTML = ''
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;'
@@ -245,58 +258,62 @@ function renderKanban() {
   zona.style.cssText = 'display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:10px;flex:1;min-height:0;'
   body.appendChild(zona)
 
-  // Source column — mirror of To-Do's (active only)
+  // Source column = ALL pending todos (status=pending, regardless of kanban_column_id)
+  // This is the mirror of the To-Do list
   const sourceTodos = todosList
-    .filter(t => t.status === 'pending' && !t.kanban_column_id)
+    .filter(t => t.status === 'pending')
     .sort((a, b) => {
       const da = diasEntre(a.started_at, null) || 0
       const db2 = diasEntre(b.started_at, null) || 0
-      return db2 - da
+      return db2 - da // oldest first
     })
 
   zona.appendChild(crearKanbanColSource(sourceTodos))
 
-  // Track rendered IDs — source todos are rendered
-  const renderedIds = new Set(sourceTodos.map(t => t.id))
+  // Track IDs shown in source
+  const sourceIds = new Set(sourceTodos.map(t => t.id))
 
-  // User-defined kanban columns
   kanbanColumns.forEach(col => {
     const isLocked = col.title === KANBAN_CLOSED_COL
 
-    // For closed col: show todos with status=closed from current session
-    // For other cols: show in_progress todos assigned to this col
-    const items = todosList
-      .filter(t => {
-        if (t.kanban_column_id !== col.id) return false
-        if (renderedIds.has(t.id)) return false
-        // Don't show closed items from previous sessions (loaded from DB with closed status but no current session flag)
-        if (isLocked && t.status !== 'closed') return false
-        if (!isLocked && t.status === 'closed') return false
-        renderedIds.add(t.id)
-        return true
-      })
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    let items
+    if (isLocked) {
+      // Show closed todos from current session only
+      // "Current session" = closed_this_session flag set in memory
+      items = todosList
+        .filter(t => {
+          if (t.kanban_column_id !== col.id) return false
+          if (t.status !== 'closed') return false
+          // Only show if closed in this session (flag set when user dragged to closed)
+          return t._closedThisSession === true
+        })
+        .sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0))
+    } else {
+      items = todosList
+        .filter(t => {
+          if (t.kanban_column_id !== col.id) return false
+          if (sourceIds.has(t.id)) return false
+          if (t.status === 'closed' || t.status === 'done') return false
+          return true
+        })
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    }
 
     zona.appendChild(crearKanbanCol(col, items, isLocked))
   })
 
-  // Add column button — insert before closed
+  // Add column button
   const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
   if (userCols.length < 4) {
     const addCol = document.createElement('button')
     addCol.className = 'kanban-add-col'
     addCol.textContent = '+ Add column'
     addCol.onclick = agregarColumna
-    // Insert before last child (Closed col)
     const children = zona.children
-    if (children.length > 0) {
-      zona.insertBefore(addCol, children[children.length - 1])
-    } else {
-      zona.appendChild(addCol)
-    }
+    if (children.length > 0) zona.insertBefore(addCol, children[children.length - 1])
+    else zona.appendChild(addCol)
   }
 
-  // Reporte
   const rw = renderReporte('kanban')
   body.appendChild(rw)
 }
@@ -319,7 +336,6 @@ function crearKanbanColSource(sourceTodos) {
     colDiv.appendChild(card)
   })
 
-  // Drop handler — moving card back to To-Do's
   colDiv.addEventListener('dragover', e => {
     e.preventDefault()
     const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
@@ -343,7 +359,11 @@ function crearKanbanColSource(sourceTodos) {
     todo.kanban_column_id = null
     todo.status = 'pending'
 
-    await db.from('todos').update({ kanban_column_id: null, status: 'pending' }).eq('id', draggedTodo)
+    await db.from('todos').update({
+      kanban_column_id: null,
+      status: 'pending'
+    }).eq('id', draggedTodo)
+
     draggedTodo = null
     renderTodos()
     await cargarTodosSummary()
@@ -406,10 +426,10 @@ function crearKanbanCol(col, items, isLocked) {
     if (!todo) return
 
     if (isLocked) {
-      // Move to Closed — keep visible this session
       todo.kanban_column_id = col.id
       todo.status = 'closed'
       todo.completed_at = new Date().toISOString()
+      todo._closedThisSession = true  // ← ADD THIS FLAG
 
       await db.from('todos').update({
         kanban_column_id: col.id,
