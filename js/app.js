@@ -84,4 +84,4 @@ function aplicarTheme() {
   if (toggle) toggle.classList.toggle('on', theme === 'dark')
 }
 
-aplicarTheme()
+document.addEventListener('DOMContentLoaded', aplicarTheme)
