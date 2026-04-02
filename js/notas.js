@@ -26,21 +26,20 @@ async function iniciarNotas(sesion) {
 // ==================== COLOR PICKER ====================
 
 function iniciarColorPickerEditor() {
-  renderColorSwatches('color-swatches-editor', color => aplicarColorNota(color))
-}
-
-function renderColorSwatches(containerId, onSelect, currentColorId) {
-  const container = document.getElementById(containerId)
+  const container = document.getElementById('color-swatches-editor')
   if (!container) return
   container.innerHTML = ''
   NOTE_COLORS.forEach(color => {
     const div = document.createElement('div')
-    div.className = 'color-swatch' + (color.id === currentColorId ? ' selected' : '')
+    div.className = 'color-swatch'
     div.title = color.label
     div.dataset.colorId = color.id
     div.style.background = color.bg || '#ffffff'
     if (!color.bg) div.style.border = '1.5px solid var(--border2)'
-    div.onclick = e => { e.stopPropagation(); onSelect(color) }
+    div.onclick = e => {
+      e.stopPropagation()
+      aplicarColorNota(color)
+    }
     container.appendChild(div)
   })
 }
@@ -52,18 +51,32 @@ function toggleColorPickerEditor() {
   cerrarTodosLosColorPickers()
   if (!isOpen) {
     popup.classList.add('open')
-    actualizarSwatchesSeleccionados('color-swatches-editor', notaActual?.color_id || 'none')
-    setTimeout(() => document.addEventListener('click', cerrarColorPickerFueraEditor), 100)
+    sincronizarSwatchesEditor()
+    setTimeout(() => {
+      document.addEventListener('click', cerrarColorPickerFueraEditor, { once: true })
+    }, 50)
   }
 }
 
 function cerrarColorPickerFueraEditor(e) {
   const popup = document.getElementById('color-picker-editor')
   const btn = document.getElementById('btn-color')
-  if (popup && !popup.contains(e.target) && e.target !== btn) {
-    popup.classList.remove('open')
-    document.removeEventListener('click', cerrarColorPickerFueraEditor)
+  if (!popup) return
+  if (popup.contains(e.target) || e.target === btn) {
+    // Re-attach listener if clicked inside
+    setTimeout(() => {
+      document.addEventListener('click', cerrarColorPickerFueraEditor, { once: true })
+    }, 50)
+    return
   }
+  popup.classList.remove('open')
+}
+
+function sincronizarSwatchesEditor() {
+  const currentId = notaActual?.color_id || 'none'
+  document.querySelectorAll('#color-swatches-editor .color-swatch').forEach(s => {
+    s.classList.toggle('selected', s.dataset.colorId === currentId)
+  })
 }
 
 function cerrarTodosLosColorPickers() {
@@ -72,58 +85,64 @@ function cerrarTodosLosColorPickers() {
   document.removeEventListener('click', cerrarColorPickerFueraEditor)
 }
 
-function actualizarSwatchesSeleccionados(containerId, colorId) {
-  const container = document.getElementById(containerId)
-  if (!container) return
-  container.querySelectorAll('.color-swatch').forEach(s => {
-    s.classList.toggle('selected', s.dataset.colorId === colorId)
-  })
-}
-
 async function aplicarColorNota(color) {
   if (!notaActual) return
+
   const { error } = await db.from('notes').update({ color_id: color.id }).eq('id', notaActual.id)
   if (error) return console.error(error)
+
   notaActual.color_id = color.id
+
+  // Apply color to editor immediately
   aplicarColorEditor(color.bg)
-  cerrarTodosLosColorPickers()
-  if (libretaActual) await cargarNotas(libretaActual.id)
-}
 
-async function aplicarColorNotaById(notaId, color) {
-  const { error } = await db.from('notes')
-    .update({ color_id: color.id })
-    .eq('id', notaId)
+  // Update selected swatch
+  sincronizarSwatchesEditor()
 
-  if (error) return console.error(error)
-
-  // Update active nota if needed
-  if (notaActual?.id === notaId) {
-    notaActual.color_id = color.id
-    aplicarColorEditor(color.bg)
-  }
-
-  // Update the list item immediately — no reload needed
-  const li = document.querySelector(`.nota-item[data-id="${notaId}"]`)
+  // Update nota item in list
+  const li = document.querySelector(`.nota-item[data-id="${notaActual.id}"]`)
   if (li) {
     li.style.background = color.bg || ''
-
-    // Update color button state
-    const colorBtn = li.querySelector('.nota-color-btn')
-    if (colorBtn) colorBtn.classList.toggle('colored', !!color.bg)
-
-    // Update inline swatch selection
+    const dot = li.querySelector('.nota-color-dot')
+    if (dot) {
+      dot.style.background = color.bg || '#e0e0e0'
+      dot.classList.toggle('has-color', !!color.bg)
+    }
+    // Update inline swatches selection
     li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
       s.classList.toggle('selected', s.dataset.colorId === color.id)
     })
+  }
+}
 
-    // Close the inline picker
+async function aplicarColorNotaById(notaId, color) {
+  const { error } = await db.from('notes').update({ color_id: color.id }).eq('id', notaId)
+  if (error) return console.error(error)
+
+  // Update active nota editor if same note
+  if (notaActual?.id === notaId) {
+    notaActual.color_id = color.id
+    aplicarColorEditor(color.bg)
+    sincronizarSwatchesEditor()
+  }
+
+  // Update the list item immediately
+  const li = document.querySelector(`.nota-item[data-id="${notaId}"]`)
+  if (li) {
+    li.style.background = color.bg || ''
+    const dot = li.querySelector('.nota-color-dot')
+    if (dot) {
+      dot.style.background = color.bg || '#e0e0e0'
+      dot.classList.toggle('has-color', !!color.bg)
+    }
+    // Update inline swatches
+    li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
+      s.classList.toggle('selected', s.dataset.colorId === color.id)
+    })
+    // Close inline picker
     const inline = li.querySelector('.nota-color-inline')
     if (inline) inline.classList.remove('open')
   }
-
-  // Full reload to keep list in sync
-  if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
 function aplicarColorEditor(bg) {
@@ -214,7 +233,7 @@ async function cargarTodosSummary() {
   if (pendingEl) pendingEl.textContent = pendientes
   if (doneEl) doneEl.textContent = done
 
-  // Kanban summary — exclude source and closed
+  // Kanban summary
   const kanbanSummary = document.getElementById('kanban-cols-summary')
   if (!kanbanSummary) return
   kanbanSummary.innerHTML = ''
@@ -337,9 +356,10 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
           <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
             onclick="event.stopPropagation(); togglePinNota('${nota.id}')"
             title="${nota.is_pinned ? 'Unpin' : 'Pin note'}">📌</button>
-          <button class="nota-color-btn ${bgColor ? 'colored' : ''}"
+          <div class="nota-color-dot ${bgColor ? 'has-color' : ''}"
+            style="background:${bgColor || '#e0e0e0'};"
             onclick="event.stopPropagation(); toggleColorInline(event, '${nota.id}')"
-            title="Note color">🎨</button>
+            title="Note color"></div>
         </div>
       </div>
       <div class="nota-color-inline" id="color-inline-${nota.id}"></div>
@@ -360,6 +380,21 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
         if (!color.bg) swatch.style.border = '1.5px solid var(--border2)'
         swatch.onclick = async e => {
           e.stopPropagation()
+          // Apply color immediately — instant preview
+          const parentLi = swatch.closest('.nota-item')
+          if (parentLi) {
+            parentLi.style.background = color.bg || ''
+            const dot = parentLi.querySelector('.nota-color-dot')
+            if (dot) {
+              dot.style.background = color.bg || '#e0e0e0'
+              dot.classList.toggle('has-color', !!color.bg)
+            }
+            // Update selection state
+            inlineEl.querySelectorAll('.color-swatch').forEach(s => {
+              s.classList.toggle('selected', s.dataset.colorId === color.id)
+            })
+          }
+          // Save to DB
           await aplicarColorNotaById(nota.id, color)
         }
         inlineEl.appendChild(swatch)
@@ -370,6 +405,11 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
     li.onclick = () => abrirNota(nota, li)
     lista.appendChild(li)
   })
+
+  // Close color pickers when clicking outside
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.nota-color-inline.open').forEach(el => el.classList.remove('open'))
+  }, { once: true })
 }
 
 function toggleColorInline(e, notaId) {
@@ -377,8 +417,22 @@ function toggleColorInline(e, notaId) {
   const inline = document.getElementById(`color-inline-${notaId}`)
   if (!inline) return
   const isOpen = inline.classList.contains('open')
+
+  // Close all others first
   document.querySelectorAll('.nota-color-inline.open').forEach(el => el.classList.remove('open'))
-  if (!isOpen) inline.classList.add('open')
+
+  if (!isOpen) {
+    inline.classList.add('open')
+    // Close when clicking outside
+    setTimeout(() => {
+      function handler(ev) {
+        if (inline.contains(ev.target)) return
+        inline.classList.remove('open')
+        document.removeEventListener('click', handler)
+      }
+      document.addEventListener('click', handler)
+    }, 50)
+  }
 }
 
 // ---- Drag & drop note reordering ----
@@ -422,8 +476,7 @@ function iniciarDragNotaItem(el, nota) {
     document.querySelectorAll('.nota-drop-indicator').forEach(i => i.remove())
     document.querySelectorAll('.nota-item.drag-over').forEach(i => i.classList.remove('drag-over'))
     const lista = document.getElementById('notas-list')
-    const items = [...lista.querySelectorAll('.nota-item')]
-    const fromEl = items.find(i => i.dataset.id === dragNotaId)
+    const fromEl = lista.querySelector(`.nota-item[data-id="${dragNotaId}"]`)
     if (!fromEl) return
     const rect = e.currentTarget.getBoundingClientRect()
     if (e.clientY < rect.top + rect.height / 2) lista.insertBefore(fromEl, el)
@@ -643,26 +696,18 @@ async function buscarGlobal(termino) {
     if (libretaActual) cargarNotas(libretaActual.id)
     return
   }
-
   const { data } = await db.from('notes')
     .select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned, color_id')
   if (!data) return
-
   const resultados = data.filter(n => {
     const titulo = descifrar(n.title_enc).toLowerCase()
     const contenido = descifrar(n.content_enc).replace(/<[^>]+>/g, '').toLowerCase()
     return titulo.includes(termino.toLowerCase()) || contenido.includes(termino.toLowerCase())
   })
-
   const lista = document.getElementById('notas-list')
   lista.innerHTML = ''
   document.getElementById('libreta-nombre').textContent = `Results: "${termino}" (${resultados.length})`
-
-  if (!resultados.length) {
-    lista.innerHTML = '<li class="nota-empty">No results found.</li>'
-    return
-  }
-
+  if (!resultados.length) { lista.innerHTML = '<li class="nota-empty">No results found.</li>'; return }
   resultados.forEach(nota => {
     const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
     const bgColor = colorObj?.bg || ''
@@ -684,7 +729,6 @@ async function buscarGlobal(termino) {
     li.onclick = () => abrirNota(nota, li)
     lista.appendChild(li)
   })
-
   if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('notas')
 }
 
