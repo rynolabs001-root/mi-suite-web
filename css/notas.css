@@ -649,15 +649,16 @@ select {
 
 /* Mobile */
 @media (max-width: 768px) {
-  .notas-layout {
-    grid-template-columns: 1fr;
-    height: auto;
-    overflow: visible;
-  }
-  .sidebar { height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
-  .notas-panel { height: auto; max-height: 300px; border-right: none; border-bottom: 1px solid var(--border); }
-  .editor-panel { height: auto; min-height: 420px; }
-  .todos-panel { width: 100%; height: auto; min-height: 300px; border-left: none; border-top: 1px solid var(--border); }
+    .notas-layout {
+    display: flex;
+    height: calc(100vh - 52px);
+    overflow: hidden;
+    }
+
+    .sidebar { min-width: 160px; max-width: 400px; }
+    .notas-panel { min-width: 200px; max-width: 500px; }
+    .editor-panel { flex: 1; min-width: 300px; }
+    .todos-panel { min-width: 250px; max-width: 600px; }
 }
 
 /* Resizable dividers */

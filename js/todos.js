@@ -3,7 +3,6 @@ let todosMode = 'list'
 let kanbanColumns = []
 let todosList = []
 let draggedTodo = null
-let dragOverTodo = null
 
 // ==================== INICIAR ====================
 
@@ -24,10 +23,20 @@ async function iniciarTodos() {
   }
 
   const resizer3 = document.getElementById('resizer-3')
+  const editor = document.getElementById('editor-panel')
+
   todosPanel.style.display = 'flex'
-  todosPanel.style.flex = 'none'
-  todosPanel.style.width = '300px'
+  todosPanel.style.flex = '1'
+  todosPanel.style.width = 'auto'
+  todosPanel.style.minWidth = '250px'
+  todosPanel.style.maxWidth = 'none'
+
   if (resizer3) resizer3.style.display = 'block'
+
+  if (editor) {
+    editor.style.flex = '1'
+    editor.style.minWidth = '300px'
+  }
 
   await cargarTodos()
   renderTodos()
@@ -36,14 +45,19 @@ async function iniciarTodos() {
 function cerrarTodos() {
   if (!todosPanel) return
   todosPanel.style.display = 'none'
+  todosPanel.style.flex = ''
+  todosPanel.style.width = ''
+  todosPanel.style.minWidth = ''
+  todosPanel.style.maxWidth = ''
+
   const resizer3 = document.getElementById('resizer-3')
   if (resizer3) resizer3.style.display = 'none'
 
-  // Editor ocupa todo el espacio disponible
   const editor = document.getElementById('editor-panel')
   if (editor) {
     editor.style.flex = '1'
     editor.style.width = ''
+    editor.style.minWidth = '300px'
   }
 }
 
@@ -96,6 +110,7 @@ function renderLista() {
   body.style.display = 'block'
   body.style.overflowY = 'auto'
   body.style.overflowX = 'hidden'
+  body.style.padding = '10px'
 
   const pendientes = todosList.filter(t => t.status !== 'done')
   const hechos = todosList.filter(t => t.status === 'done')
@@ -106,6 +121,39 @@ function renderLista() {
   todos.forEach(todo => {
     const div = crearTodoItem(todo)
     body.appendChild(div)
+  })
+
+  body.addEventListener('dragover', e => {
+    e.preventDefault()
+    const afterEl = getDragAfterElement(body, e.clientY, '.todo-item')
+    limpiarIndicadores(body)
+    const indicator = crearIndicador()
+    if (!afterEl) {
+      body.appendChild(indicator)
+    } else {
+      body.insertBefore(indicator, afterEl)
+    }
+  })
+
+  body.addEventListener('drop', e => {
+    e.preventDefault()
+    limpiarIndicadores(body)
+    if (!draggedTodo) return
+    const afterEl = getDragAfterElement(body, e.clientY, '.todo-item')
+    const fromIdx = todosList.findIndex(t => t.id === draggedTodo)
+    const [moved] = todosList.splice(fromIdx, 1)
+    if (!afterEl) {
+      todosList.push(moved)
+    } else {
+      const toIdx = todosList.findIndex(t => t.id === afterEl.dataset.id)
+      todosList.splice(toIdx, 0, moved)
+    }
+    todosList.forEach((t, i) => t.sort_order = i)
+    renderTodos()
+    Promise.all(todosList.map(t =>
+      db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)
+    ))
+    draggedTodo = null
   })
 }
 
@@ -138,22 +186,7 @@ function crearTodoItem(todo) {
   div.addEventListener('dragend', () => {
     div.style.opacity = '1'
     draggedTodo = null
-    dragOverTodo = null
-  })
-
-  div.addEventListener('dragover', e => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    dragOverTodo = todo.id
-    document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'))
-    div.classList.add('drag-over')
-  })
-
-  div.addEventListener('drop', e => {
-    e.preventDefault()
-    if (draggedTodo && draggedTodo !== todo.id) {
-      reordenarTodo(todo.id)
-    }
+    limpiarIndicadores(document.getElementById('todos-body'))
   })
 
   return div
@@ -167,6 +200,7 @@ function renderKanban() {
   body.style.overflowX = 'auto'
   body.style.overflowY = 'hidden'
   body.style.alignItems = 'flex-start'
+  body.style.padding = '10px'
   body.innerHTML = ''
 
   kanbanColumns.forEach(col => {
@@ -178,7 +212,7 @@ function renderKanban() {
     const colDiv = document.createElement('div')
     colDiv.className = 'kanban-col'
     colDiv.dataset.colId = col.id
-    colDiv.style.minWidth = '160px'
+    colDiv.style.minWidth = '150px'
     colDiv.style.flex = '1'
 
     colDiv.innerHTML = `
@@ -193,29 +227,62 @@ function renderKanban() {
       </div>
     `
 
-    // Drop zone para columna vacía
+    items.forEach(todo => {
+      const card = crearKanbanCard(todo, col.id)
+      colDiv.appendChild(card)
+    })
+
     colDiv.addEventListener('dragover', e => {
       e.preventDefault()
-      colDiv.classList.add('drag-over-col')
+      const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
+      limpiarIndicadores(colDiv)
+      const indicator = crearIndicador()
+      const addBtn = colDiv.querySelector('.kanban-add-btn')
+      if (!afterEl) {
+        colDiv.insertBefore(indicator, addBtn)
+      } else {
+        colDiv.insertBefore(indicator, afterEl)
+      }
     })
 
     colDiv.addEventListener('dragleave', e => {
       if (!colDiv.contains(e.relatedTarget)) {
-        colDiv.classList.remove('drag-over-col')
+        limpiarIndicadores(colDiv)
       }
     })
 
     colDiv.addEventListener('drop', e => {
       e.preventDefault()
-      colDiv.classList.remove('drag-over-col')
-      if (draggedTodo) {
-        moverAColumnaAlFinal(col.id)
-      }
-    })
+      limpiarIndicadores(colDiv)
+      if (!draggedTodo) return
 
-    items.forEach(todo => {
-      const card = crearKanbanCard(todo, col.id)
-      colDiv.appendChild(card)
+      const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
+      const todo = todosList.find(t => t.id === draggedTodo)
+      if (!todo) return
+
+      todosList = todosList.filter(t => t.id !== draggedTodo)
+      todo.kanban_column_id = col.id
+
+      if (!afterEl) {
+        const colItems = todosList.filter(t => t.kanban_column_id === col.id)
+        todo.sort_order = colItems.length
+        todosList.push(todo)
+      } else {
+        const insertIdx = todosList.findIndex(t => t.id === afterEl.dataset.id)
+        todosList.splice(Math.max(0, insertIdx), 0, todo)
+      }
+
+      const colItems = todosList.filter(t => t.kanban_column_id === col.id)
+      colItems.forEach((t, i) => t.sort_order = i)
+
+      renderTodos()
+
+      Promise.all([
+        db.from('todos').update({ kanban_column_id: col.id }).eq('id', draggedTodo),
+        ...colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id))
+      ])
+
+      draggedTodo = null
     })
 
     const addBtn = document.createElement('button')
@@ -241,7 +308,6 @@ function crearKanbanCard(todo, colId) {
   card.className = 'kanban-card'
   card.draggable = true
   card.dataset.id = todo.id
-  card.dataset.colId = colId
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
     ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
@@ -256,26 +322,7 @@ function crearKanbanCard(todo, colId) {
   card.addEventListener('dragend', () => {
     card.style.opacity = '1'
     draggedTodo = null
-    dragOverTodo = null
-    document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('drag-over'))
-  })
-
-  card.addEventListener('dragover', e => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'move'
-    document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('drag-over'))
-    card.classList.add('drag-over')
-    dragOverTodo = todo.id
-  })
-
-  card.addEventListener('drop', e => {
-    e.preventDefault()
-    e.stopPropagation()
-    card.classList.remove('drag-over')
-    if (draggedTodo && draggedTodo !== todo.id) {
-      insertarAntesDeCard(draggedTodo, todo.id, colId)
-    }
+    document.querySelectorAll('.drop-indicator').forEach(el => el.remove())
   })
 
   card.addEventListener('click', () => abrirTodoCard(todo, card))
@@ -283,63 +330,31 @@ function crearKanbanCard(todo, colId) {
   return card
 }
 
-// ==================== DRAG AND DROP ====================
+// ==================== DRAG HELPERS ====================
 
-async function reordenarTodo(targetId) {
-  if (!draggedTodo || draggedTodo === targetId) return
-  const fromIdx = todosList.findIndex(t => t.id === draggedTodo)
-  const toIdx = todosList.findIndex(t => t.id === targetId)
-  if (fromIdx === -1 || toIdx === -1) return
-  const [moved] = todosList.splice(fromIdx, 1)
-  todosList.splice(toIdx, 0, moved)
-  todosList.forEach((t, i) => t.sort_order = i)
-  document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'))
-  renderTodos()
-  await Promise.all(todosList.map(t =>
-    db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)
-  ))
+function getDragAfterElement(container, y, selector) {
+  const elements = [...container.querySelectorAll(selector)]
+    .filter(el => el.style.opacity !== '0.4')
+
+  return elements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect()
+    const offset = y - box.top - box.height / 2
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child }
+    }
+    return closest
+  }, { offset: Number.NEGATIVE_INFINITY }).element
 }
 
-async function insertarAntesDeCard(draggedId, targetId, colId) {
-  const draggedIdx = todosList.findIndex(t => t.id === draggedId)
-  const targetIdx = todosList.findIndex(t => t.id === targetId)
-  if (draggedIdx === -1 || targetIdx === -1) return
-
-  const dragged = todosList[draggedIdx]
-  dragged.kanban_column_id = colId
-
-  todosList.splice(draggedIdx, 1)
-  const newTargetIdx = todosList.findIndex(t => t.id === targetId)
-  todosList.splice(newTargetIdx, 0, dragged)
-
-  const colItems = todosList.filter(t => t.kanban_column_id === colId)
-  colItems.forEach((t, i) => t.sort_order = i)
-
-  renderTodos()
-
-  await Promise.all([
-    db.from('todos').update({ kanban_column_id: colId }).eq('id', draggedId),
-    ...colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id))
-  ])
+function crearIndicador() {
+  const el = document.createElement('div')
+  el.className = 'drop-indicator'
+  return el
 }
 
-async function moverAColumnaAlFinal(colId) {
-  if (!draggedTodo) return
-  const todo = todosList.find(t => t.id === draggedTodo)
-  if (!todo || todo.kanban_column_id === colId) return
-
-  todo.kanban_column_id = colId
-  const colItems = todosList.filter(t => t.kanban_column_id === colId)
-  todo.sort_order = colItems.length - 1
-
-  renderTodos()
-
-  await db.from('todos').update({
-    kanban_column_id: colId,
-    sort_order: todo.sort_order
-  }).eq('id', draggedTodo)
-
-  draggedTodo = null
+function limpiarIndicadores(container) {
+  const target = container || document
+  target.querySelectorAll('.drop-indicator').forEach(el => el.remove())
 }
 
 // ==================== ACCIONES LISTA ====================
@@ -350,14 +365,13 @@ async function agregarTodo() {
   if (!texto) return
 
   const colDefault = kanbanColumns[0]?.id || null
-  const maxOrder = todosList.length
 
   const { data } = await db.from('todos').insert({
     note_id: notaActual.id,
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: colDefault,
-    sort_order: maxOrder,
+    sort_order: todosList.length,
     created_by: sesionActual.user.id
   }).select().single()
 
@@ -472,12 +486,10 @@ async function eliminarColumna(id) {
 function abrirTodoCard(todo, cardEl) {
   document.querySelectorAll('.kanban-card.expanded').forEach(c => {
     c.classList.remove('expanded')
-    c.innerHTML = `
-      <div class="kanban-card-text">${descifrar(c._todo?.text_enc || '')}</div>
-    `
+    c.innerHTML = `<div class="kanban-card-text">${descifrar(c._todoText || '')}</div>`
   })
 
-  cardEl._todo = todo
+  cardEl._todoText = todo.text_enc
   cardEl.classList.add('expanded')
   cardEl.innerHTML = `
     <div contenteditable="true" class="kanban-card-edit"
@@ -495,7 +507,6 @@ function abrirTodoCard(todo, cardEl) {
       </button>
     </div>
   `
-
   cardEl.querySelector('.kanban-card-edit').focus()
 
   setTimeout(() => {
