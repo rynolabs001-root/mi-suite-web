@@ -66,3 +66,22 @@ async function verificarSesion() {
   const { data } = await db.auth.getSession()
   return data.session
 }
+
+// Dark mode
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const newTheme = isDark ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-theme', newTheme)
+  localStorage.setItem('theme', newTheme)
+  const toggle = document.getElementById('theme-toggle')
+  if (toggle) toggle.classList.toggle('on', newTheme === 'dark')
+}
+
+function aplicarTheme() {
+  const theme = localStorage.getItem('theme') || 'light'
+  document.documentElement.setAttribute('data-theme', theme)
+  const toggle = document.getElementById('theme-toggle')
+  if (toggle) toggle.classList.toggle('on', theme === 'dark')
+}
+
+aplicarTheme()
