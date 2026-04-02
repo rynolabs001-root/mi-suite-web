@@ -5,6 +5,7 @@ let todosList = []
 let draggedTodo = null
 let _expandedCard = null
 let _expandedTodo = null
+let reporteOculto = false
 
 // ==================== INICIAR ====================
 
@@ -104,35 +105,71 @@ function renderTodos() {
   else renderKanban()
 }
 
-// ---- LISTA ----
+// ==================== UTILIDADES FECHA ====================
+
+function fmtFecha(fecha) {
+  if (!fecha) return '—'
+  const d = new Date(fecha)
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+}
+
+function diasEntre(inicio, fin) {
+  if (!inicio) return null
+  const a = new Date(inicio)
+  const b = fin ? new Date(fin) : new Date()
+  return Math.floor((b - a) / (1000 * 60 * 60 * 24))
+}
+
+function diasVencidos(todo) {
+  if (todo.status === 'done') return -1
+  return diasEntre(todo.started_at, null) || 0
+}
+
+// ==================== LISTA ====================
+
 function renderLista() {
   const body = document.getElementById('todos-body')
-  body.style.display = 'block'
+  body.style.display = 'flex'
+  body.style.flexDirection = 'column'
   body.style.overflowY = 'auto'
   body.style.overflowX = 'hidden'
-  body.style.padding = '10px'
+  body.style.padding = '0'
+  body.innerHTML = ''
 
-  const pendientes = todosList.filter(t => t.status !== 'done')
+  // Zona de tareas
+  const zona = document.createElement('div')
+  zona.id = 'todos-zona'
+  zona.style.padding = '10px'
+  zona.style.flex = '1'
+  zona.style.overflowY = 'auto'
+  body.appendChild(zona)
+
+  const pendientes = todosList
+    .filter(t => t.status !== 'done')
+    .sort((a, b) => diasVencidos(b) - diasVencidos(a))
+
   const hechos = todosList.filter(t => t.status === 'done')
   const todos = [...pendientes, ...hechos]
 
-  body.innerHTML = todos.length ? '' : '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet.</p>'
+  if (!todos.length) {
+    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet.</p>'
+  } else {
+    todos.forEach(todo => zona.appendChild(crearTodoItem(todo)))
+  }
 
-  todos.forEach(todo => body.appendChild(crearTodoItem(todo)))
-
-  body.addEventListener('dragover', e => {
+  zona.addEventListener('dragover', e => {
     e.preventDefault()
-    const afterEl = getDragAfterElement(body, e.clientY, '.todo-item')
-    limpiarIndicadores(body)
+    const afterEl = getDragAfterElement(zona, e.clientY, '.todo-item')
+    limpiarIndicadores(zona)
     const ind = crearIndicador()
-    afterEl ? body.insertBefore(ind, afterEl) : body.appendChild(ind)
+    afterEl ? zona.insertBefore(ind, afterEl) : zona.appendChild(ind)
   })
 
-  body.addEventListener('drop', e => {
+  zona.addEventListener('drop', e => {
     e.preventDefault()
-    limpiarIndicadores(body)
+    limpiarIndicadores(zona)
     if (!draggedTodo) return
-    const afterEl = getDragAfterElement(body, e.clientY, '.todo-item')
+    const afterEl = getDragAfterElement(zona, e.clientY, '.todo-item')
     const fromIdx = todosList.findIndex(t => t.id === draggedTodo)
     const [moved] = todosList.splice(fromIdx, 1)
     if (!afterEl) {
@@ -148,6 +185,9 @@ function renderLista() {
     ))
     draggedTodo = null
   })
+
+  // Reporte incremental
+  body.appendChild(renderReporteLista())
 }
 
 function crearTodoItem(todo) {
@@ -164,7 +204,10 @@ function crearTodoItem(todo) {
         onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
         ${descifrar(todo.text_enc)}
       </div>
-      ${todo.due_date ? `<div class="todo-date">${formatearFecha(todo.due_date)}</div>` : ''}
+      <div class="todo-item-fecha">
+        ${todo.started_at ? 'Started: ' + fmtFecha(todo.started_at) : ''}
+        ${todo.completed_at ? ' · Done: ' + fmtFecha(todo.completed_at) : ''}
+      </div>
     </div>
     <button onclick="eliminarTodo('${todo.id}')"
       style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;flex-shrink:0;">✕</button>
@@ -179,22 +222,94 @@ function crearTodoItem(todo) {
   div.addEventListener('dragend', () => {
     div.style.opacity = '1'
     draggedTodo = null
-    limpiarIndicadores(document.getElementById('todos-body'))
+    limpiarIndicadores(document.getElementById('todos-zona'))
   })
 
   return div
 }
 
-// ---- KANBAN ----
+function renderReporteLista() {
+  const wrap = document.createElement('div')
+  wrap.className = 'reporte-wrap'
+
+  const isOpen = !reporteOculto
+  const items = todosList
+
+  wrap.innerHTML = `
+    <div class="reporte-header" onclick="toggleReporte()">
+      <div class="reporte-header-left">
+        <span class="reporte-titulo">Activity log</span>
+        <span class="reporte-count">${items.length}</span>
+        <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
+      </div>
+      <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
+    </div>
+    <div class="reporte-body ${isOpen ? 'open' : ''}" id="reporte-body-lista">
+      ${items.length ? '' : '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'}
+    </div>
+  `
+
+  const body = wrap.querySelector('#reporte-body-lista')
+  items.forEach(todo => {
+    const dias = todo.status === 'done'
+      ? diasEntre(todo.started_at, todo.completed_at)
+      : diasEntre(todo.started_at, null)
+
+    const diasLabel = dias !== null
+      ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`)
+      : '—'
+
+    const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
+
+    const row = document.createElement('div')
+    row.className = 'reporte-item'
+    row.innerHTML = `
+      <div class="reporte-dot ${todo.status}"></div>
+      <span class="reporte-texto">${descifrar(todo.text_enc)}</span>
+      <div class="reporte-fechas">
+        <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
+        <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
+      </div>
+      <span class="reporte-dias ${diasClass}">${diasLabel}</span>
+      <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
+    `
+    body.appendChild(row)
+  })
+
+  return wrap
+}
+
+function toggleReporte() {
+  reporteOculto = !reporteOculto
+  const body = document.getElementById('reporte-body-lista')
+  const toggle = body?.parentElement?.querySelector('.reporte-toggle')
+  if (body) body.classList.toggle('open', !reporteOculto)
+  if (toggle) toggle.classList.toggle('open', !reporteOculto)
+}
+
+async function eliminarDeReporte(id) {
+  if (!confirm('Remove this entry from the log?')) return
+  await eliminarTodo(id)
+}
+
+// ==================== KANBAN ====================
+
 function renderKanban() {
   const body = document.getElementById('todos-body')
   body.style.display = 'flex'
-  body.style.gap = '8px'
-  body.style.overflowX = 'auto'
-  body.style.overflowY = 'hidden'
-  body.style.alignItems = 'flex-start'
-  body.style.padding = '10px'
+  body.style.flexDirection = 'column'
+  body.style.padding = '0'
   body.innerHTML = ''
+
+  const zona = document.createElement('div')
+  zona.style.display = 'flex'
+  zona.style.gap = '8px'
+  zona.style.overflowX = 'auto'
+  zona.style.overflowY = 'hidden'
+  zona.style.alignItems = 'flex-start'
+  zona.style.padding = '10px'
+  zona.style.flex = '1'
+  body.appendChild(zona)
 
   kanbanColumns.forEach(col => {
     const items = todosList
@@ -274,7 +389,7 @@ function renderKanban() {
       draggedTodo = null
     })
 
-    body.appendChild(colDiv)
+    zona.appendChild(colDiv)
   })
 
   if (kanbanColumns.length < 6 && notaActual.author_id === sesionActual.user.id) {
@@ -282,9 +397,65 @@ function renderKanban() {
     addCol.className = 'kanban-add-col'
     addCol.textContent = '+ Add column'
     addCol.onclick = agregarColumna
-    body.appendChild(addCol)
+    zona.appendChild(addCol)
   }
+
+  // Reporte kanban
+  body.appendChild(renderReporteKanban())
 }
+
+function renderReporteKanban() {
+  const wrap = document.createElement('div')
+  wrap.className = 'reporte-wrap'
+
+  const isOpen = !reporteOculto
+  const items = todosList
+
+  wrap.innerHTML = `
+    <div class="reporte-header" onclick="toggleReporte()">
+      <div class="reporte-header-left">
+        <span class="reporte-titulo">Activity log</span>
+        <span class="reporte-count">${items.length}</span>
+        <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
+      </div>
+      <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
+    </div>
+    <div class="reporte-body ${isOpen ? 'open' : ''}" id="reporte-body-kanban">
+      ${items.length ? '' : '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'}
+    </div>
+  `
+
+  const body = wrap.querySelector('#reporte-body-kanban')
+  items.forEach(todo => {
+    const col = kanbanColumns.find(c => c.id === todo.kanban_column_id)
+    const dias = diasEntre(todo.started_at, todo.completed_at || null)
+    const diasLabel = dias !== null
+      ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`)
+      : '—'
+    const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
+
+    const row = document.createElement('div')
+    row.className = 'reporte-item'
+    row.innerHTML = `
+      <div class="reporte-dot ${todo.status}"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
+        <div style="font-size:10px;color:var(--text3);">${col?.title || '—'}</div>
+      </div>
+      <div class="reporte-fechas">
+        <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
+        <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
+      </div>
+      <span class="reporte-dias ${diasClass}">${diasLabel}</span>
+      <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
+    `
+    body.appendChild(row)
+  })
+
+  return wrap
+}
+
+// ==================== CARD EXPANDIDA ====================
 
 function crearKanbanCard(todo, colId) {
   const card = document.createElement('div')
@@ -295,7 +466,10 @@ function crearKanbanCard(todo, colId) {
 
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
-    ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
+    ${todo.due_date ? `<div class="kanban-card-date">${fmtFecha(todo.due_date)}</div>` : ''}
+    <div style="font-size:10px;color:var(--text3);margin-top:3px;">
+      ${fmtFecha(todo.started_at)}
+    </div>
   `
 
   card.addEventListener('dragstart', e => {
@@ -317,6 +491,84 @@ function crearKanbanCard(todo, colId) {
   })
 
   return card
+}
+
+function abrirTodoCard(todo, cardEl) {
+  if (_expandedCard === cardEl) return
+
+  if (_expandedCard && _expandedCard !== cardEl) {
+    cerrarCardExpandida(_expandedCard, _expandedTodo)
+  }
+
+  _expandedCard = cardEl
+  _expandedTodo = todo
+  cardEl.draggable = false
+  cardEl.classList.add('expanded')
+
+  cardEl.innerHTML = `
+    <div contenteditable="true" class="kanban-card-edit" id="card-edit-${todo.id}"
+      onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
+      ${descifrar(todo.text_enc)}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+      <select id="card-col-${todo.id}"
+        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
+        ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
+      </select>
+      <button onclick="event.stopPropagation();eliminarTodo('${todo.id}')"
+        style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
+        Delete
+      </button>
+    </div>
+  `
+
+  setTimeout(() => {
+    const editEl = document.getElementById(`card-edit-${todo.id}`)
+    if (editEl) editEl.focus()
+  }, 50)
+
+  setTimeout(() => {
+    function clickFuera(e) {
+      if (cardEl.contains(e.target)) return
+
+      // Guardar nueva columna seleccionada antes de cerrar
+      const selectEl = document.getElementById(`card-col-${todo.id}`)
+      if (selectEl && selectEl.value !== todo.kanban_column_id) {
+        cambiarColumnaKanban(todo.id, selectEl.value).then(() => {
+          cargarTodos().then(() => renderTodos())
+        })
+      } else {
+        cerrarCardExpandida(cardEl, todo)
+      }
+
+      document.removeEventListener('click', clickFuera)
+    }
+    document.addEventListener('click', clickFuera)
+    cardEl._clickFuera = clickFuera
+  }, 400)
+}
+
+function cerrarCardExpandida(cardEl, todo) {
+  if (!cardEl) return
+  cardEl.classList.remove('expanded')
+  cardEl.draggable = true
+  cardEl.innerHTML = `
+    <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
+    ${todo.due_date ? `<div class="kanban-card-date">${fmtFecha(todo.due_date)}</div>` : ''}
+    <div style="font-size:10px;color:var(--text3);margin-top:3px;">${fmtFecha(todo.started_at)}</div>
+  `
+  if (cardEl._clickFuera) {
+    document.removeEventListener('click', cardEl._clickFuera)
+    delete cardEl._clickFuera
+  }
+  _expandedCard = null
+  _expandedTodo = null
+}
+
+async function cambiarColumnaKanban(todoId, colId) {
+  await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
+  const todo = todosList.find(t => t.id === todoId)
+  if (todo) todo.kanban_column_id = colId
 }
 
 // ==================== DRAG HELPERS ====================
@@ -346,78 +598,7 @@ function limpiarIndicadores(container) {
   target.querySelectorAll('.drop-indicator').forEach(el => el.remove())
 }
 
-// ==================== CARD EXPANDIDA ====================
-
-function abrirTodoCard(todo, cardEl) {
-  if (_expandedCard === cardEl) return
-
-  if (_expandedCard && _expandedCard !== cardEl) {
-    cerrarCardExpandida(_expandedCard, _expandedTodo)
-  }
-
-  _expandedCard = cardEl
-  _expandedTodo = todo
-  cardEl.draggable = false
-  cardEl.classList.add('expanded')
-
-  cardEl.innerHTML = `
-    <div contenteditable="true" class="kanban-card-edit" id="card-edit-${todo.id}"
-      onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
-      ${descifrar(todo.text_enc)}
-    </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
-      <select id="card-col-${todo.id}"
-        onchange="cambiarColumnaKanban('${todo.id}', this.value)"
-        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
-        ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
-      </select>
-      <button onclick="event.stopPropagation();eliminarTodo('${todo.id}')"
-        style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
-        Delete
-      </button>
-    </div>
-  `
-
-  setTimeout(() => {
-    const editEl = document.getElementById(`card-edit-${todo.id}`)
-    if (editEl) editEl.focus()
-  }, 50)
-
-  // Delay generoso antes de registrar el click externo
-  setTimeout(() => {
-    function clickFuera(e) {
-      if (cardEl.contains(e.target)) return
-      cerrarCardExpandida(cardEl, todo)
-      document.removeEventListener('click', clickFuera)
-    }
-    document.addEventListener('click', clickFuera)
-    cardEl._clickFuera = clickFuera
-  }, 400)
-}
-
-function cerrarCardExpandida(cardEl, todo) {
-  if (!cardEl) return
-  cardEl.classList.remove('expanded')
-  cardEl.draggable = true
-  cardEl.innerHTML = `
-    <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
-    ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
-  `
-  if (cardEl._clickFuera) {
-    document.removeEventListener('click', cardEl._clickFuera)
-    delete cardEl._clickFuera
-  }
-  _expandedCard = null
-  _expandedTodo = null
-}
-
-async function cambiarColumnaKanban(todoId, colId) {
-  await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
-  const todo = todosList.find(t => t.id === todoId)
-  if (todo) todo.kanban_column_id = colId
-}
-
-// ==================== ACCIONES LISTA ====================
+// ==================== ACCIONES ====================
 
 async function agregarTodo() {
   const input = document.getElementById('todo-input')
@@ -432,6 +613,7 @@ async function agregarTodo() {
     status: 'pending',
     kanban_column_id: colDefault,
     sort_order: todosList.length,
+    started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
   }).select().single()
 
@@ -446,8 +628,13 @@ async function toggleTodoStatus(id) {
   const todo = todosList.find(t => t.id === id)
   if (!todo) return
   const nuevo = todo.status === 'done' ? 'pending' : 'done'
-  await db.from('todos').update({ status: nuevo }).eq('id', id)
+  const updates = {
+    status: nuevo,
+    completed_at: nuevo === 'done' ? new Date().toISOString() : null
+  }
+  await db.from('todos').update(updates).eq('id', id)
   todo.status = nuevo
+  todo.completed_at = updates.completed_at
   renderTodos()
 }
 
@@ -470,6 +657,8 @@ async function eliminarTodo(id) {
     kanban_column_id: todo.kanban_column_id,
     sort_order: todo.sort_order,
     due_date: todo.due_date,
+    started_at: todo.started_at,
+    completed_at: todo.completed_at,
     deleted_by: sesionActual.user.id
   })
 
@@ -479,8 +668,6 @@ async function eliminarTodo(id) {
   _expandedTodo = null
   renderTodos()
 }
-
-// ==================== ACCIONES KANBAN ====================
 
 async function agregarTodoEnColumna(colId) {
   const texto = prompt('Task name:')
@@ -494,6 +681,7 @@ async function agregarTodoEnColumna(colId) {
     status: 'pending',
     kanban_column_id: colId,
     sort_order: colItems.length,
+    started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
   }).select().single()
 
@@ -543,6 +731,11 @@ async function eliminarColumna(id) {
   renderTodos()
 }
 
+async function eliminarDeReporte(id) {
+  if (!confirm('Remove this entry from the log?')) return
+  await eliminarTodo(id)
+}
+
 // ==================== VERSIONES ====================
 
 async function guardarVersionTodos() {
@@ -551,7 +744,9 @@ async function guardarVersionTodos() {
     text: descifrar(t.text_enc),
     status: t.status,
     kanban_column_id: t.kanban_column_id,
-    sort_order: t.sort_order
+    sort_order: t.sort_order,
+    started_at: t.started_at,
+    completed_at: t.completed_at
   }))
 
   const { error } = await db.from('todos_versions').insert({
@@ -589,6 +784,8 @@ async function verVersionesTodos() {
     status: t.status,
     kanban_column_id: t.kanban_column_id,
     sort_order: t.sort_order,
+    started_at: t.started_at,
+    completed_at: t.completed_at,
     created_by: sesionActual.user.id
   }))
 
