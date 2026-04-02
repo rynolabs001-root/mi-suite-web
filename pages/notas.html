@@ -160,7 +160,7 @@
 
   <div class="resizer" id="resizer-3" style="display:none;"></div>
 
-  <!-- ==================== TODOS PANEL ==================== -->
+<!-- ==================== TODOS PANEL ==================== -->
   <section class="todos-panel" id="todos-panel">
     <div class="todos-header">
       <span class="todos-title">To-Do's</span>
@@ -170,19 +170,18 @@
           <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
         </div>
         <div class="todos-icon-btns">
-          <button onclick="guardarVersionTodos()" title="Save version" class="todos-icon-btn">&#128190;</button>
           <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">&#128336;</button>
-          <button onclick="cerrarTodos()" title="Close" class="todos-icon-btn">&#x2715;</button>
         </div>
       </div>
     </div>
     <div class="todos-body" id="todos-body"></div>
-    <div class="todo-add">
+    <div class="todo-add" id="todo-add-bar">
       <input class="todo-input" id="todo-input" placeholder="Add a task..."
         onkeydown="if(event.key==='Enter') agregarTodo()">
       <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
   </section>
+  
 
 </div>
 

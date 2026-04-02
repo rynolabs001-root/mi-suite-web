@@ -62,8 +62,7 @@ function seleccionarLibreta(libreta, el) {
   libretaActual = libreta
   document.getElementById('libreta-nombre').textContent = descifrar(libreta.name_enc)
 
-  // Mobile: ir a vista de notas
-  if (window.innerWidth <= 768) {
+  if (typeof esMobile === 'function' && esMobile()) {
     mobileNavSelect('notas')
   }
 
@@ -73,16 +72,6 @@ function seleccionarLibreta(libreta, el) {
 // ==================== TODOS SUMMARY ====================
 
 async function cargarTodosSummary() {
-  const { data: cols } = await db
-    .from('kanban_columns')
-    .select('id, title, note_id')
-
-  const { data: todos } = await db
-    .from('todos')
-    .select('id, status, kanban_column_id')
-    .eq('note_id', notaActual?.id || '00000000-0000-0000-0000-000000000000')
-
-  // Para el summary global tomamos todos los todos del usuario
   const { data: allTodos } = await db
     .from('todos')
     .select('id, status, kanban_column_id, note_id')
@@ -94,7 +83,6 @@ async function cargarTodosSummary() {
 
   if (!allTodos || !allCols) return
 
-  const total = allTodos.length
   const pendientes = allTodos.filter(t => t.status !== 'done').length
 
   const badge = document.getElementById('todos-total-badge')
@@ -103,7 +91,7 @@ async function cargarTodosSummary() {
     badge.className = 'todos-summary-total' + (pendientes > 0 ? ' warn' : '')
   }
 
-  // Agrupar por columna única (por título)
+  // Agrupar por título de columna
   const colMap = {}
   allCols.forEach(col => {
     if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
@@ -128,6 +116,12 @@ async function cargarTodosSummary() {
     return
   }
 
+  // Etiqueta To-Do's lista
+  const labelLista = document.createElement('div')
+  labelLista.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
+  labelLista.textContent = 'Tasks'
+  colsList.appendChild(labelLista)
+
   uniqueCols.forEach((col, i) => {
     const row = document.createElement('div')
     row.className = 'todos-col-row'
@@ -136,13 +130,53 @@ async function cargarTodosSummary() {
       <span class="todos-col-name">${col.title}</span>
       <span class="todos-col-count">${col.count}</span>
     `
-    row.onclick = () => abrirTodosGlobal()
+    row.onclick = () => {
+      if (typeof esMobile === 'function' && esMobile()) {
+        mobileNavSelect('todos')
+      } else {
+        abrirTodosGlobal()
+      }
+    }
+    colsList.appendChild(row)
+  })
+
+  // Separador visual
+  const sep = document.createElement('div')
+  sep.style.cssText = 'height:1px;background:var(--border);margin:6px 8px 2px;'
+  colsList.appendChild(sep)
+
+  // Etiqueta Kanban
+  const labelKanban = document.createElement('div')
+  labelKanban.style.cssText = 'padding:4px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
+  labelKanban.textContent = 'Kanban'
+  colsList.appendChild(labelKanban)
+
+  // Resumen kanban por columna
+  uniqueCols.forEach((col, i) => {
+    const row = document.createElement('div')
+    row.className = 'todos-col-row'
+    row.innerHTML = `
+      <div class="todos-col-dot" style="background:${colColors[i % colColors.length]};"></div>
+      <span class="todos-col-name">${col.title}</span>
+      <span class="todos-col-count">${col.count}</span>
+    `
+    row.onclick = () => {
+      if (typeof esMobile === 'function' && esMobile()) {
+        mobileNavSelect('todos')
+      } else {
+        abrirTodosGlobal()
+      }
+    }
     colsList.appendChild(row)
   })
 }
 
 async function abrirTodosGlobal() {
-  // Abrir el panel de todos sin nota seleccionada
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+    return
+  }
+
   todosPanel = document.getElementById('todos-panel')
   if (!todosPanel) return
 
@@ -161,7 +195,6 @@ async function abrirTodosGlobal() {
   if (resizer3) resizer3.style.display = 'block'
   if (editor) { editor.style.flex = '1'; editor.style.minWidth = '300px' }
 
-  // Cargar todos globales
   await cargarTodosGlobal()
   renderTodos()
 }
@@ -271,10 +304,10 @@ function abrirNota(nota, el) {
 
   historialSesion.push(document.getElementById('nota-contenido').innerHTML)
 
-  // Mobile: ir a vista editor
-  if (window.innerWidth <= 768) mobileNavSelect('editor')
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('editor')
+  }
 
-  // Autoguardado cada 5 minutos
   if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
   window._autoguardadoInterval = setInterval(async () => {
     if (!notaActual || !window._hayaCambios) return
@@ -299,7 +332,7 @@ async function guardarNota() {
 
   window._hayaCambios = false
   await registrarActividad('saved note')
-  await cargarNotas(libretaActual.id)
+  if (libretaActual) await cargarNotas(libretaActual.id)
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(new Date())
 }
 
@@ -322,8 +355,7 @@ async function eliminarNota() {
   document.getElementById('editor-contenido').style.display = 'none'
 
   if (typeof cerrarTodos === 'function') cerrarTodos()
-
-  await cargarNotas(libretaActual.id)
+  if (libretaActual) await cargarNotas(libretaActual.id)
   await cargarPapeleraCuenta()
 }
 
@@ -333,7 +365,7 @@ async function togglePin() {
   await db.from('notes').update({ is_pinned: nuevoEstado }).eq('id', notaActual.id)
   notaActual.is_pinned = nuevoEstado
   document.getElementById('btn-pin').style.opacity = nuevoEstado ? '1' : '0.4'
-  await cargarNotas(libretaActual.id)
+  if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
 function ordenarNotas(valor) {
@@ -450,14 +482,29 @@ function iniciarBusqueda() {
       el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
     })
   })
+
+  // Busqueda global en sidebar
+  const sidebarSearch = document.getElementById('sidebar-search')
+  if (sidebarSearch) {
+    sidebarSearch.addEventListener('input', () => {
+      buscarGlobal(sidebarSearch.value)
+    })
+  }
 }
 
 async function buscarGlobal(termino) {
-  if (!termino) return
-  // Buscar en todas las notas
+  if (!termino) {
+    // Si se borra la busqueda, restaurar vista normal
+    document.getElementById('libreta-nombre').textContent = libretaActual
+      ? descifrar(libretaActual.name_enc)
+      : 'Select a notebook'
+    if (libretaActual) cargarNotas(libretaActual.id)
+    return
+  }
+
   const { data } = await db
     .from('notes')
-    .select('id, title_enc, content_enc, notebook_id, updated_at')
+    .select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned')
 
   if (!data) return
 
@@ -470,26 +517,36 @@ async function buscarGlobal(termino) {
   const lista = document.getElementById('notas-list')
   lista.innerHTML = ''
 
+  document.getElementById('libreta-nombre').textContent =
+    `Results: "${termino}" (${resultados.length})`
+
   if (!resultados.length) {
     lista.innerHTML = '<li class="nota-empty">No results found.</li>'
-    document.getElementById('libreta-nombre').textContent = `Results for "${termino}"`
     return
   }
-
-  document.getElementById('libreta-nombre').textContent = `Results for "${termino}" (${resultados.length})`
 
   resultados.forEach(nota => {
     const li = document.createElement('li')
     li.className = 'nota-item'
     li.dataset.id = nota.id
     li.innerHTML = `
-      <div class="nota-item-titulo">${descifrar(nota.title_enc) || 'Untitled'}</div>
-      <div class="nota-item-preview">${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}</div>
+      <div class="nota-item-titulo">
+        ${nota.is_pinned ? '<span class="nota-pin">📌</span>' : ''}
+        ${descifrar(nota.title_enc) || 'Untitled'}
+      </div>
+      <div class="nota-item-preview">
+        ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
+      </div>
       <div class="nota-item-fecha">${formatearFecha(nota.updated_at)}</div>
     `
     li.onclick = () => abrirNota(nota, li)
     lista.appendChild(li)
   })
+
+  // En mobile mostrar panel de notas con resultados
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('notas')
+  }
 }
 
 // ==================== ENCRIPTACION ====================

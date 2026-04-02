@@ -93,9 +93,19 @@ function aplicarVistaMobile(vista) {
         todosPanel.style.position = 'relative'
         todosPanel.style.zIndex = '10'
       }
+
+      // Ocultar barra inferior duplicada en mobile
+      const addBar = document.getElementById('todo-add-bar')
+      if (addBar && esMobile()) addBar.style.display = 'none'
+
       actualizarNavbarMobile('todos')
       notaActual = null
-      cargarTodosGlobal().then(() => renderTodos())
+      cargarTodosGlobal().then(() => {
+        renderTodos()
+        // Re-aplicar modo actual para que kanban cargue bien
+        const modoActual = todosMode || 'list'
+        setTodosMode(modoActual)
+      })
       break
 
     case 'papelera':
@@ -146,7 +156,7 @@ function actualizarNavbarMobile(vista) {
       nav.innerHTML = `
         <a href="#" onclick="guardarYRegresar()"
           style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
-          ‹ Notas
+          ‹ Inicio
         </a>
         <strong style="font-size:13px;flex:1;text-align:center;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;"
           id="nota-titulo-nav">
@@ -197,7 +207,7 @@ async function guardarYRegresar() {
   if (notaActual && window._hayaCambios) {
     await guardarNota()
   }
-  mobileNavSelect('notas')
+  mobileNavSelect('inicio')
 }
 
 function agregarTodoMobile() {
@@ -294,11 +304,13 @@ function restaurarDesktop() {
   const notasPanel = document.getElementById('notas-panel')
   const editorPanel = document.getElementById('editor-panel')
   const todosPanel = document.getElementById('todos-panel')
+  const addBar = document.getElementById('todo-add-bar')
 
   if (sidebar) sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);'
   if (notasPanel) notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);'
   if (editorPanel) editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;'
   if (todosPanel) todosPanel.style.cssText = 'display:none;'
+  if (addBar) addBar.style.display = 'flex'
 
   aplicarTheme()
 }
@@ -343,7 +355,6 @@ mobileNavStyle.textContent = `
     .editor-titulo { font-size: 18px; padding: 14px 16px 6px; }
     .editor-area { padding: 6px 16px 100px; font-size: 15px; -webkit-overflow-scrolling: touch; }
     .editor-footer { padding: 8px 16px; }
-
     .editor-footer-actions { display: none; }
 
     .kanban-col { min-width: 140px; }
@@ -351,16 +362,62 @@ mobileNavStyle.textContent = `
     .todos-panel { position: relative; z-index: 10; }
     .sidebar-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 
-    .libretas-wrap { flex: none; max-height: 45vh; }
+    .libretas-wrap { flex: none; max-height: 42vh; }
     .todos-summary-wrap { flex: none; }
+
+    /* Separacion visual entre To-Do's y Kanban en sidebar */
+    .todos-summary-card {
+      margin-bottom: 2px;
+    }
+
+    .todos-cols-list .todos-col-row:first-child {
+      border-top: 2px solid var(--border);
+      margin-top: 4px;
+      padding-top: 8px;
+    }
+
+    /* Separador visual entre lista y kanban en sidebar */
+    .todos-summary-wrap::before {
+      content: '';
+      display: block;
+      height: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
   }
 
   @media (max-width: 768px) and (orientation: landscape) {
     .editor-area { padding-bottom: 60px; }
-    .libretas-wrap { max-height: 30vh; }
+    .libretas-wrap { max-height: 28vh; }
   }
 `
 document.head.appendChild(mobileNavStyle)
+
+// ==================== SEPARACION VISUAL EN SIDEBAR MOBILE ====================
+
+function agregarSeparacionSidebar() {
+  if (!esMobile()) return
+
+  const todosWrap = document.querySelector('.todos-summary-wrap')
+  if (!todosWrap) return
+
+  // Agregar etiqueta de separacion entre To-Do's lista y Kanban
+  const colsList = document.getElementById('todos-cols-list')
+  if (!colsList) return
+
+  const rows = colsList.querySelectorAll('.todos-col-row')
+  if (rows.length === 0) return
+
+  // Encontrar el separador entre lista y kanban (despues de "To Do")
+  // Agregar linea divisora despues de la primera columna
+  rows.forEach((row, i) => {
+    if (i === 0) {
+      row.style.borderTop = '1px solid var(--border)'
+      row.style.paddingTop = '8px'
+      row.style.marginTop = '2px'
+    }
+  })
+}
 
 // ==================== INIT ====================
 
@@ -369,5 +426,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     patchTodosSidebar()
     patchPapeleraSidebar()
+    agregarSeparacionSidebar()
   }, 1500)
 })
