@@ -19,6 +19,31 @@
   </div>
 </nav>
 
+<!-- Panel To-Do's -->
+  <section class="todos-panel" id="todos-panel">
+    <div class="todos-header">
+      <span class="todos-title">To-Do's</span>
+      <div class="todos-header-actions">
+        <button onclick="guardarVersionTodos()" title="Save version"
+          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">&#128190;</button>
+        <button onclick="verVersionesTodos()" title="History"
+          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;">&#128336;</button>
+        <div class="mode-tabs">
+          <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
+          <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
+        </div>
+        <button onclick="cerrarTodos()"
+          style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;">✕</button>
+      </div>
+    </div>
+    <div class="todos-body" id="todos-body"></div>
+    <div class="todo-add">
+      <input class="todo-input" id="todo-input" placeholder="Add a task..."
+        onkeydown="if(event.key==='Enter') agregarTodo()">
+      <button class="todo-add-btn" onclick="agregarTodo()">+</button>
+    </div>
+  </section>
+
 <div class="notas-layout">
 
   <!-- Sidebar izquierdo: libretas -->
@@ -115,6 +140,8 @@
     else iniciarNotas(sesion)
   })()
 </script>
+
+<script src="../js/todos.js"></script>
 
 </body>
 </html>

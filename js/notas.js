@@ -317,6 +317,303 @@ function formatearFecha(fecha) {
 }
 
 function abrirAdjuntos() { alert('Módulo de adjuntos — próximamente.') }
-function abrirTodos() { alert('Módulo de To-Dos — próximamente.') }
+function abrirTodos() { iniciarTodos() }
 function abrirRecordatorio() { alert('Módulo de recordatorios — próximamente.') }
 function abrirColor() { alert('Selector de color — próximamente.') }
+
+/* ==================== TODOS PANEL ==================== */
+.notas-layout.with-todos {
+  grid-template-columns: 220px 280px 1fr 320px;
+}
+
+.todos-panel {
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  min-width: 0;
+}
+
+.todos-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.todos-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.todos-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-tabs {
+  display: flex;
+  background: var(--bg3);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-tab {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font);
+  border: none;
+  cursor: pointer;
+  color: var(--text3);
+  background: transparent;
+  transition: all 0.15s;
+}
+
+.mode-tab.active {
+  background: var(--bg2);
+  color: var(--text);
+}
+
+.todos-body {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Lista */
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  cursor: grab;
+}
+
+.todo-item:active { cursor: grabbing; }
+
+.todo-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: all 0.15s;
+}
+
+.todo-check.done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.todo-check.done::after {
+  content: '✓';
+  font-size: 10px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.todo-text {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  outline: none;
+  line-height: 1.5;
+}
+
+.todo-text.done {
+  text-decoration: line-through;
+  color: var(--text3);
+}
+
+.todo-date {
+  font-size: 11px;
+  color: var(--warning);
+  margin-top: 2px;
+}
+
+.todo-add {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.todo-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  background: var(--bg2);
+  color: var(--text);
+}
+
+.todo-input:focus { border-color: var(--accent); }
+
+.todo-add-btn {
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+/* Kanban */
+.todos-body.kanban-mode {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px;
+  align-content: start;
+}
+
+.kanban-col {
+  background: var(--bg2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.kanban-col-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text3);
+  flex: 1;
+  outline: none;
+  cursor: text;
+}
+
+.kanban-col-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  background: var(--bg3);
+  padding: 1px 6px;
+  border-radius: 99px;
+}
+
+.kanban-col-delete {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.kanban-col-delete:hover { color: var(--danger); }
+
+.kanban-card {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  cursor: grab;
+  transition: border-color 0.15s;
+}
+
+.kanban-card:active { cursor: grabbing; }
+.kanban-card:hover { border-color: var(--accent); }
+
+.kanban-card.expanded {
+  cursor: default;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
+}
+
+.kanban-card-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+.kanban-card-date { font-size: 11px; color: var(--warning); margin-top: 4px; }
+
+.kanban-card-edit {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  outline: none;
+  min-height: 40px;
+}
+
+.kanban-add-btn {
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  text-align: left;
+  transition: background 0.15s;
+  margin-top: 4px;
+}
+
+.kanban-add-btn:hover { background: var(--bg3); color: var(--text); }
+
+.kanban-add-col {
+  background: var(--bg2);
+  border: 1.5px dashed var(--border2);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: var(--font);
+  color: var(--text3);
+  cursor: pointer;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.kanban-add-col:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg3);
+}
