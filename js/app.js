@@ -1,6 +1,6 @@
 // Configuración Supabase
-const SUPABASE_URL = https://kiusmfwdgsodqmoqpaxr.supabase.co
-const SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpdXNtZndkZ3NvZHFtb3FwYXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMjEyNDgsImV4cCI6MjA5MDU5NzI0OH0.MJM0fYZdzBytsJjBYo1GOcFo2jK3_EUZ0j2TqcsxQSw
+const SUPABASE_URL = 'https://kiusmfwdgsodqmoqpaxr.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpdXNtZndkZ3NvZHFtb3FwYXhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwMjEyNDgsImV4cCI6MjA5MDU5NzI0OH0.MJM0fYZdzBytsJjBYo1GOcFo2jK3_EUZ0j2TqcsxQSw'
 
 const { createClient } = supabase
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
