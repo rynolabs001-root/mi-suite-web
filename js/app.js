@@ -74,14 +74,18 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', newTheme)
   localStorage.setItem('theme', newTheme)
   const toggle = document.getElementById('theme-toggle')
+  const label = document.getElementById('theme-label')
   if (toggle) toggle.classList.toggle('on', newTheme === 'dark')
+  if (label) label.textContent = newTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'
 }
 
 function aplicarTheme() {
   const theme = localStorage.getItem('theme') || 'light'
   document.documentElement.setAttribute('data-theme', theme)
   const toggle = document.getElementById('theme-toggle')
+  const label = document.getElementById('theme-label')
   if (toggle) toggle.classList.toggle('on', theme === 'dark')
+  if (label) label.textContent = theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'
 }
 
 document.addEventListener('DOMContentLoaded', aplicarTheme)
