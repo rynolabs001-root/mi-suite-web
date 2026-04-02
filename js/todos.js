@@ -3,6 +3,8 @@ let todosMode = 'list'
 let kanbanColumns = []
 let todosList = []
 let draggedTodo = null
+let _expandedCard = null
+let _expandedTodo = null
 
 // ==================== INICIAR ====================
 
@@ -16,7 +18,6 @@ async function iniciarTodos() {
   if (!todosPanel) return
 
   const visible = todosPanel.style.display === 'flex'
-
   if (visible) {
     cerrarTodos()
     return
@@ -32,7 +33,6 @@ async function iniciarTodos() {
   todosPanel.style.maxWidth = 'none'
 
   if (resizer3) resizer3.style.display = 'block'
-
   if (editor) {
     editor.style.flex = '1'
     editor.style.minWidth = '300px'
@@ -118,21 +118,14 @@ function renderLista() {
 
   body.innerHTML = todos.length ? '' : '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet.</p>'
 
-  todos.forEach(todo => {
-    const div = crearTodoItem(todo)
-    body.appendChild(div)
-  })
+  todos.forEach(todo => body.appendChild(crearTodoItem(todo)))
 
   body.addEventListener('dragover', e => {
     e.preventDefault()
     const afterEl = getDragAfterElement(body, e.clientY, '.todo-item')
     limpiarIndicadores(body)
-    const indicator = crearIndicador()
-    if (!afterEl) {
-      body.appendChild(indicator)
-    } else {
-      body.insertBefore(indicator, afterEl)
-    }
+    const ind = crearIndicador()
+    afterEl ? body.insertBefore(ind, afterEl) : body.appendChild(ind)
   })
 
   body.addEventListener('drop', e => {
@@ -227,28 +220,24 @@ function renderKanban() {
       </div>
     `
 
-    items.forEach(todo => {
-      const card = crearKanbanCard(todo, col.id)
-      colDiv.appendChild(card)
-    })
+    const addBtn = document.createElement('button')
+    addBtn.className = 'kanban-add-btn'
+    addBtn.textContent = '+ Add task'
+    addBtn.onclick = () => agregarTodoEnColumna(col.id)
+
+    items.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, col.id)))
+    colDiv.appendChild(addBtn)
 
     colDiv.addEventListener('dragover', e => {
       e.preventDefault()
       const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
       limpiarIndicadores(colDiv)
-      const indicator = crearIndicador()
-      const addBtn = colDiv.querySelector('.kanban-add-btn')
-      if (!afterEl) {
-        colDiv.insertBefore(indicator, addBtn)
-      } else {
-        colDiv.insertBefore(indicator, afterEl)
-      }
+      const ind = crearIndicador()
+      afterEl ? colDiv.insertBefore(ind, afterEl) : colDiv.insertBefore(ind, addBtn)
     })
 
     colDiv.addEventListener('dragleave', e => {
-      if (!colDiv.contains(e.relatedTarget)) {
-        limpiarIndicadores(colDiv)
-      }
+      if (!colDiv.contains(e.relatedTarget)) limpiarIndicadores(colDiv)
     })
 
     colDiv.addEventListener('drop', e => {
@@ -285,12 +274,6 @@ function renderKanban() {
       draggedTodo = null
     })
 
-    const addBtn = document.createElement('button')
-    addBtn.className = 'kanban-add-btn'
-    addBtn.textContent = '+ Add task'
-    addBtn.onclick = () => agregarTodoEnColumna(col.id)
-    colDiv.appendChild(addBtn)
-
     body.appendChild(colDiv)
   })
 
@@ -308,12 +291,15 @@ function crearKanbanCard(todo, colId) {
   card.className = 'kanban-card'
   card.draggable = true
   card.dataset.id = todo.id
+  card._todo = todo
+
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
     ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
   `
 
   card.addEventListener('dragstart', e => {
+    if (_expandedCard) return e.preventDefault()
     draggedTodo = todo.id
     e.dataTransfer.effectAllowed = 'move'
     setTimeout(() => card.style.opacity = '0.4', 0)
@@ -325,7 +311,10 @@ function crearKanbanCard(todo, colId) {
     document.querySelectorAll('.drop-indicator').forEach(el => el.remove())
   })
 
-  card.addEventListener('click', () => abrirTodoCard(todo, card))
+  card.addEventListener('click', e => {
+    e.stopPropagation()
+    abrirTodoCard(todo, card)
+  })
 
   return card
 }
@@ -334,7 +323,7 @@ function crearKanbanCard(todo, colId) {
 
 function getDragAfterElement(container, y, selector) {
   const elements = [...container.querySelectorAll(selector)]
-    .filter(el => el.style.opacity !== '0.4')
+    .filter(el => el.style.opacity !== '0.4' && !el.classList.contains('expanded'))
 
   return elements.reduce((closest, child) => {
     const box = child.getBoundingClientRect()
@@ -355,6 +344,77 @@ function crearIndicador() {
 function limpiarIndicadores(container) {
   const target = container || document
   target.querySelectorAll('.drop-indicator').forEach(el => el.remove())
+}
+
+// ==================== CARD EXPANDIDA ====================
+
+function abrirTodoCard(todo, cardEl) {
+  if (_expandedCard === cardEl) return
+
+  if (_expandedCard && _expandedCard !== cardEl) {
+    cerrarCardExpandida(_expandedCard, _expandedTodo)
+  }
+
+  _expandedCard = cardEl
+  _expandedTodo = todo
+  cardEl.draggable = false
+  cardEl.classList.add('expanded')
+
+  cardEl.innerHTML = `
+    <div contenteditable="true" class="kanban-card-edit" id="card-edit-${todo.id}"
+      onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
+      ${descifrar(todo.text_enc)}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+      <select id="card-col-${todo.id}"
+        onchange="cambiarColumnaKanban('${todo.id}', this.value)"
+        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
+        ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
+      </select>
+      <button onclick="event.stopPropagation();eliminarTodo('${todo.id}')"
+        style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
+        Delete
+      </button>
+    </div>
+  `
+
+  setTimeout(() => {
+    const editEl = document.getElementById(`card-edit-${todo.id}`)
+    if (editEl) editEl.focus()
+  }, 50)
+
+  // Delay generoso antes de registrar el click externo
+  setTimeout(() => {
+    function clickFuera(e) {
+      if (cardEl.contains(e.target)) return
+      cerrarCardExpandida(cardEl, todo)
+      document.removeEventListener('click', clickFuera)
+    }
+    document.addEventListener('click', clickFuera)
+    cardEl._clickFuera = clickFuera
+  }, 400)
+}
+
+function cerrarCardExpandida(cardEl, todo) {
+  if (!cardEl) return
+  cardEl.classList.remove('expanded')
+  cardEl.draggable = true
+  cardEl.innerHTML = `
+    <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
+    ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
+  `
+  if (cardEl._clickFuera) {
+    document.removeEventListener('click', cardEl._clickFuera)
+    delete cardEl._clickFuera
+  }
+  _expandedCard = null
+  _expandedTodo = null
+}
+
+async function cambiarColumnaKanban(todoId, colId) {
+  await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
+  const todo = todosList.find(t => t.id === todoId)
+  if (todo) todo.kanban_column_id = colId
 }
 
 // ==================== ACCIONES LISTA ====================
@@ -415,6 +475,8 @@ async function eliminarTodo(id) {
 
   await db.from('todos').delete().eq('id', id)
   todosList = todosList.filter(t => t.id !== id)
+  _expandedCard = null
+  _expandedTodo = null
   renderTodos()
 }
 
@@ -479,51 +541,6 @@ async function eliminarColumna(id) {
   kanbanColumns = kanbanColumns.filter(c => c.id !== id)
   todosList.forEach(t => { if (t.kanban_column_id === id) t.kanban_column_id = primeraCol })
   renderTodos()
-}
-
-// ==================== CARD EXPANDIDA ====================
-
-function abrirTodoCard(todo, cardEl) {
-  document.querySelectorAll('.kanban-card.expanded').forEach(c => {
-    c.classList.remove('expanded')
-    c.innerHTML = `<div class="kanban-card-text">${descifrar(c._todoText || '')}</div>`
-  })
-
-  cardEl._todoText = todo.text_enc
-  cardEl.classList.add('expanded')
-  cardEl.innerHTML = `
-    <div contenteditable="true" class="kanban-card-edit"
-      onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
-      ${descifrar(todo.text_enc)}
-    </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
-      <select onchange="cambiarColumnaKanban('${todo.id}', this.value)"
-        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
-        ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
-      </select>
-      <button onclick="eliminarTodo('${todo.id}')"
-        style="font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:var(--danger);color:#fff;cursor:pointer;font-family:var(--font);">
-        Delete
-      </button>
-    </div>
-  `
-  cardEl.querySelector('.kanban-card-edit').focus()
-
-  setTimeout(() => {
-    document.addEventListener('click', function handler(e) {
-      if (!cardEl.contains(e.target)) {
-        cardEl.classList.remove('expanded')
-        cargarTodos().then(() => renderTodos())
-        document.removeEventListener('click', handler)
-      }
-    })
-  }, 100)
-}
-
-async function cambiarColumnaKanban(todoId, colId) {
-  await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
-  const todo = todosList.find(t => t.id === todoId)
-  if (todo) todo.kanban_column_id = colId
 }
 
 // ==================== VERSIONES ====================

@@ -123,6 +123,7 @@ function abrirNota(nota, el) {
 
   notaActual = nota
   historialSesion = []
+  window._hayaCambios = false
 
   document.getElementById('editor-placeholder').style.display = 'none'
   document.getElementById('editor-contenido').style.display = 'flex'
@@ -134,6 +135,14 @@ function abrirNota(nota, el) {
 
   const contenidoInicial = document.getElementById('nota-contenido').innerHTML
   historialSesion.push(contenidoInicial)
+
+  // Autoguardado cada 5 minutos si hay cambios
+  if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
+  window._autoguardadoInterval = setInterval(async () => {
+    if (!notaActual || !window._hayaCambios) return
+    await guardarNota()
+    window._hayaCambios = false
+  }, 5 * 60 * 1000)
 }
 
 async function guardarNota() {
@@ -150,6 +159,7 @@ async function guardarNota() {
 
   if (error) return alert('Error saving note.')
 
+  window._hayaCambios = false
   await registrarActividad('saved note')
   await cargarNotas(libretaActual.id)
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(new Date())
@@ -166,13 +176,14 @@ async function eliminarNota() {
 
   await db.from('notes').delete().eq('id', notaActual.id)
 
+  if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
+  window._hayaCambios = false
   notaActual = null
+
   document.getElementById('editor-placeholder').style.display = 'flex'
   document.getElementById('editor-contenido').style.display = 'none'
 
-  if (typeof todosPanel !== 'undefined' && todosPanel) {
-    cerrarTodos()
-  }
+  if (typeof cerrarTodos === 'function') cerrarTodos()
 
   await cargarNotas(libretaActual.id)
 }
@@ -227,6 +238,7 @@ function atajosTeclado(e) {
 }
 
 function onContenidoChange() {
+  window._hayaCambios = true
   const contenido = document.getElementById('nota-contenido').innerHTML
   historialSesion.push(contenido)
   if (historialSesion.length > 100) historialSesion.shift()
@@ -271,7 +283,7 @@ async function verVersiones() {
     `${i + 1}. ${formatearFecha(v.saved_at)}`
   ).join('\n')
 
-  const seleccion = prompt(`Available versions:\n${lista}\n\nEnter number to restore (or cancel):`)
+  const seleccion = prompt(`Available versions:\n${lista}\n\nEnter number to restore:`)
   if (!seleccion) return
 
   const idx = parseInt(seleccion) - 1
@@ -280,6 +292,7 @@ async function verVersiones() {
   const version = data[idx]
   document.getElementById('nota-titulo').value = descifrar(version.title_enc)
   document.getElementById('nota-contenido').innerHTML = descifrar(version.content_enc)
+  window._hayaCambios = true
   alert('Version restored. Save the note to confirm.')
 }
 
@@ -334,7 +347,7 @@ function formatearFecha(fecha) {
   })
 }
 
-// ==================== MODULOS PENDIENTES ====================
+// ==================== MODULOS ====================
 
 function abrirAdjuntos() { alert('Attachments module — coming soon.') }
 function abrirTodos() { iniciarTodos() }

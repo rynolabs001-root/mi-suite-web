@@ -45,7 +45,8 @@
     <div class="notas-panel-header">
       <span class="notas-panel-title" id="libreta-nombre">Select a notebook</span>
       <div class="notas-panel-actions">
-        <input type="text" id="buscar-notas" placeholder="Search notes..." class="input-buscar">
+        <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Note title"
+  oninput="window._hayaCambios = true">
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
