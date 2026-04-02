@@ -3,40 +3,197 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — Mi Suite Web</title>
+  <title>Sign In — Mi Suite Web</title>
   <link rel="stylesheet" href="../css/styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 380px;
+      padding: 1.5rem;
+    }
+    .login-brand {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .login-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2rem;
+    }
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .login-subtitle {
+      font-size: 14px;
+      color: var(--text3);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+    .field-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text3);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .field-wrap {
+      margin-bottom: 14px;
+    }
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .login-divider span {
+      font-size: 12px;
+      color: var(--text3);
+      white-space: nowrap;
+    }
+    .login-divider hr {
+      flex: 1;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+    .login-footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--text3);
+    }
+    .login-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .login-footer a:hover { text-decoration: underline; }
+    .forgot-link {
+      display: block;
+      text-align: right;
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      margin-top: -8px;
+      margin-bottom: 20px;
+    }
+    .forgot-link:hover { text-decoration: underline; }
+    .tab-wrap {
+      display: flex;
+      background: var(--bg3);
+      border-radius: 10px;
+      padding: 3px;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 7px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: var(--font);
+      cursor: pointer;
+      color: var(--text3);
+      background: transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--bg2);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+  </style>
 </head>
 <body>
 
-  <div class="container" style="max-width: 420px; margin-top: 4rem;">
-    <div class="card">
-      <h2 style="margin-bottom: 1.5rem; text-align: center;">Mi Suite Web</h2>
+  <div class="login-wrap">
+    <p class="login-brand">Mi Suite Web</p>
+
+    <div class="login-card">
+      <h1 class="login-title">Welcome back</h1>
+      <p class="login-subtitle">Sign in to your account to continue.</p>
+
+      <!-- Tabs -->
+      <div class="tab-wrap">
+        <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Sign in</button>
+        <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Create account</button>
+      </div>
 
       <div id="msg-error" class="msg-error" style="display:none;"></div>
       <div id="msg-ok" class="msg-ok" style="display:none;"></div>
 
-      <input type="email" id="email" placeholder="Correo electrónico" />
-      <input type="password" id="password" placeholder="Contraseña" />
+      <!-- Campos -->
+      <div class="field-wrap">
+        <label class="field-label">Email address</label>
+        <input type="email" id="email" placeholder="you@example.com">
+      </div>
 
-      <button class="btn btn-primary" style="width:100%; margin-bottom: 0.8rem;"
-        onclick="iniciarSesion()">
-        Iniciar sesión
+      <div class="field-wrap">
+        <label class="field-label">Password</label>
+        <input type="password" id="password" placeholder="Your password"
+          onkeydown="if(event.key==='Enter') accionPrincipal()">
+      </div>
+
+      <a href="reset-password.html" class="forgot-link" id="link-forgot">Forgot your password?</a>
+
+      <button class="btn btn-primary" style="width:100%;" onclick="accionPrincipal()" id="btn-principal">
+        Sign in
       </button>
 
-      <button class="btn" style="width:100%; background:#f3f4f6;"
-        onclick="Crear cuenta()">
-        Crear cuenta
-      </button>
+    </div>
 
-      <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text3);">
-  <a href="reset-password.html" style="color:var(--accent);text-decoration:none;">Forgot your password?</a>
-</p>
-
+    <div class="login-footer">
+      By continuing you agree to our
+      <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../js/app.js"></script>
+  <script>
+    let modoActual = 'login'
+
+    function switchTab(modo) {
+      modoActual = modo
+      document.getElementById('tab-login').classList.toggle('active', modo === 'login')
+      document.getElementById('tab-register').classList.toggle('active', modo === 'register')
+      document.getElementById('btn-principal').textContent = modo === 'login' ? 'Sign in' : 'Create account'
+      document.getElementById('link-forgot').style.display = modo === 'login' ? 'block' : 'none'
+      document.getElementById('msg-error').style.display = 'none'
+      document.getElementById('msg-ok').style.display = 'none'
+
+      const subtitle = document.querySelector('.login-subtitle')
+      const title = document.querySelector('.login-title')
+      if (modo === 'register') {
+        title.textContent = 'Create your account'
+        subtitle.textContent = 'Join Mi Suite Web to get started.'
+      } else {
+        title.textContent = 'Welcome back'
+        subtitle.textContent = 'Sign in to your account to continue.'
+      }
+    }
+
+    function accionPrincipal() {
+      if (modoActual === 'login') iniciarSesion()
+      else registrarse()
+    }
+  </script>
 
 </body>
 </html>
