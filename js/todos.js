@@ -19,10 +19,7 @@ async function iniciarTodos() {
   if (!todosPanel) return
 
   const visible = todosPanel.style.display === 'flex'
-  if (visible) {
-    cerrarTodos()
-    return
-  }
+  if (visible) { cerrarTodos(); return }
 
   const resizer3 = document.getElementById('resizer-3')
   const editor = document.getElementById('editor-panel')
@@ -34,10 +31,7 @@ async function iniciarTodos() {
   todosPanel.style.maxWidth = 'none'
 
   if (resizer3) resizer3.style.display = 'block'
-  if (editor) {
-    editor.style.flex = '1'
-    editor.style.minWidth = '300px'
-  }
+  if (editor) { editor.style.flex = '1'; editor.style.minWidth = '300px' }
 
   await cargarTodos()
   renderTodos()
@@ -108,7 +102,7 @@ function renderTodos() {
   else renderKanban()
 }
 
-// ==================== UTILIDADES FECHA ====================
+// ==================== FECHA ====================
 
 function fmtFecha(fecha) {
   if (!fecha) return '—'
@@ -193,7 +187,7 @@ function renderLista() {
   })
 
   const reporteWrap = renderReporte('lista')
-  reporteWrap.style.flex = '3'
+  reporteWrap.style.flex = reporteOculto ? '0' : '3'
   reporteWrap.style.minHeight = '0'
   reporteWrap.style.display = 'flex'
   reporteWrap.style.flexDirection = 'column'
@@ -255,26 +249,34 @@ function renderKanban() {
   zona.style.overflowY = 'auto'
   zona.style.alignItems = 'flex-start'
   zona.style.padding = '10px'
-  zona.style.flex = '7'
+  zona.style.flex = reporteOculto ? '1' : '7'
   zona.style.minHeight = '0'
   body.appendChild(zona)
 
   if (!kanbanColumns.length) {
-    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:2rem;">No columns yet. Add tasks first.</p>'
-    const reporteWrap = renderReporte('kanban')
-    reporteWrap.style.flex = '3'
-    reporteWrap.style.minHeight = '0'
-    reporteWrap.style.display = 'flex'
-    reporteWrap.style.flexDirection = 'column'
-    body.appendChild(reporteWrap)
+    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:2rem;width:100%;">No columns yet.</p>'
+    const rw = renderReporte('kanban')
+    rw.style.flex = reporteOculto ? '0' : '3'
+    rw.style.minHeight = '0'
+    rw.style.display = 'flex'
+    rw.style.flexDirection = 'column'
+    body.appendChild(rw)
     return
   }
 
   const esOwner = !notaActual || notaActual?.author_id === sesionActual?.user?.id
 
+  // Deduplicate: use a Set to track rendered todo IDs
+  const renderedIds = new Set()
+
   kanbanColumns.forEach(col => {
     const items = todosList
-      .filter(t => t.kanban_column_id === col.id)
+      .filter(t => {
+        if (t.kanban_column_id !== col.id) return false
+        if (renderedIds.has(t.id)) return false
+        renderedIds.add(t.id)
+        return true
+      })
       .sort((a, b) => a.sort_order - b.sort_order)
 
     const colDiv = document.createElement('div')
@@ -288,7 +290,9 @@ function renderKanban() {
       <div class="kanban-col-header">
         <span class="kanban-col-title"
           contenteditable="${esOwner}"
-          onblur="renombrarColumna('${col.id}', this.textContent)">
+          data-col-id="${col.id}"
+          data-original="${col.title}"
+          onblur="renombrarColumna('${col.id}', this)">
           ${col.title}
         </span>
         <span class="kanban-col-count">${items.length}</span>
@@ -362,7 +366,7 @@ function renderKanban() {
   }
 
   const reporteWrap = renderReporte('kanban')
-  reporteWrap.style.flex = '3'
+  reporteWrap.style.flex = reporteOculto ? '0' : '3'
   reporteWrap.style.minHeight = '0'
   reporteWrap.style.display = 'flex'
   reporteWrap.style.flexDirection = 'column'
@@ -377,6 +381,7 @@ function renderReporte(modo) {
   wrap.style.display = 'flex'
   wrap.style.flexDirection = 'column'
   wrap.style.minHeight = '0'
+  wrap.style.flexShrink = '0'
 
   const isOpen = !reporteOculto
 
@@ -397,17 +402,14 @@ function renderReporte(modo) {
     <div class="reporte-header-left">
       <span class="reporte-titulo">Activity log</span>
       <span class="reporte-count">${items.length}</span>
-      <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
+      <span style="font-size:10px;color:var(--text3);">DD/MM/YYYY</span>
     </div>
     <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
   `
   wrap.appendChild(header)
 
   const bodyEl = document.createElement('div')
-  bodyEl.className = `reporte-body ${isOpen ? 'open' : ''}`
-  bodyEl.style.overflowY = 'auto'
-  bodyEl.style.flex = '1'
-  bodyEl.style.minHeight = '0'
+  bodyEl.className = 'reporte-body' + (isOpen ? ' open' : '')
 
   if (!items.length) {
     bodyEl.innerHTML = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'
@@ -430,7 +432,9 @@ function renderReporte(modo) {
         <div class="reporte-dot ${todo.status}"></div>
         <div style="flex:1;min-width:0;">
           <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
-          ${modo === 'kanban' && col ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>` : ''}
+          ${modo === 'kanban' && col
+            ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>`
+            : ''}
         </div>
         <div class="reporte-fechas">
           <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
@@ -449,18 +453,30 @@ function renderReporte(modo) {
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
-  document.querySelectorAll('.reporte-body').forEach(body => {
-    body.classList.toggle('open', !reporteOculto)
-    if (!reporteOculto) body.style.maxHeight = ''
-  })
-  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
-    toggle.classList.toggle('open', !reporteOculto)
+
+  document.querySelectorAll('.reporte-body').forEach(el => {
+    if (reporteOculto) {
+      el.classList.remove('open')
+      el.style.height = '0'
+    } else {
+      el.classList.add('open')
+      el.style.height = '160px'
+    }
   })
 
-  document.querySelectorAll('.reporte-wrap').forEach(wrap => {
-    wrap.style.flex = reporteOculto ? '0' : '3'
-    wrap.style.overflow = reporteOculto ? 'hidden' : ''
+  document.querySelectorAll('.reporte-toggle').forEach(el => {
+    el.classList.toggle('open', !reporteOculto)
   })
+
+  document.querySelectorAll('.reporte-wrap').forEach(el => {
+    el.style.flex = reporteOculto ? '0' : '3'
+    el.style.overflow = reporteOculto ? 'hidden' : ''
+    el.style.flexShrink = '0'
+  })
+
+  // Expand top zone when collapsed
+  const zona = document.getElementById('todos-zona')
+  if (zona) zona.style.flex = reporteOculto ? '1' : '7'
 }
 
 // ==================== CARD KANBAN ====================
@@ -470,7 +486,6 @@ function crearKanbanCard(todo, colId) {
   card.className = 'kanban-card'
   card.draggable = true
   card.dataset.id = todo.id
-  card._todo = todo
 
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
@@ -594,11 +609,6 @@ async function agregarTodo() {
   const colDefault = kanbanColumns[0]?.id || null
   const noteId = notaActual?.id || null
 
-  if (!noteId && !colDefault) {
-    alert('Please select a note first or open To-Dos from the sidebar.')
-    return
-  }
-
   const insertData = {
     text_enc: cifrar(texto),
     status: 'pending',
@@ -699,6 +709,13 @@ async function agregarColumna() {
   const titulo = prompt('Column name:')
   if (!titulo) return
 
+  // Check duplicate name
+  const existe = kanbanColumns.some(c => c.title.toLowerCase() === titulo.toLowerCase())
+  if (existe) {
+    alert(`A column named "${titulo}" already exists. Please use a different name.`)
+    return
+  }
+
   const noteId = notaActual?.id || null
   const insertData = {
     title: titulo,
@@ -715,12 +732,44 @@ async function agregarColumna() {
   }
 }
 
-async function renombrarColumna(id, titulo) {
-  const trimmed = titulo.trim()
-  if (!trimmed) return
+async function renombrarColumna(id, el) {
+  const trimmed = el.textContent.trim()
+  if (!trimmed) {
+    // Restore original
+    el.textContent = el.dataset.original || ''
+    return
+  }
+
+  // Check for duplicate — exclude current column
+  const existe = kanbanColumns.some(c => c.id !== id && c.title.toLowerCase() === trimmed.toLowerCase())
+  if (existe) {
+    // Show inline error
+    el.classList.add('error')
+    el.textContent = el.dataset.original || trimmed
+    setTimeout(() => el.classList.remove('error'), 1500)
+
+    // Show warning
+    const colDiv = el.closest('.kanban-col')
+    if (colDiv) {
+      let warn = colDiv.querySelector('.col-name-warning')
+      if (!warn) {
+        warn = document.createElement('div')
+        warn.className = 'col-name-warning'
+        warn.textContent = `"${trimmed}" already exists. Name was not changed.`
+        colDiv.insertBefore(warn, colDiv.querySelector('.kanban-card') || colDiv.querySelector('.kanban-add-btn'))
+      }
+      warn.classList.add('show')
+      setTimeout(() => warn.classList.remove('show'), 3000)
+    }
+    return
+  }
+
   await db.from('kanban_columns').update({ title: trimmed }).eq('id', id)
   const col = kanbanColumns.find(c => c.id === id)
-  if (col) col.title = trimmed
+  if (col) {
+    col.title = trimmed
+    el.dataset.original = trimmed
+  }
 }
 
 async function eliminarColumna(id) {
@@ -761,7 +810,7 @@ async function guardarVersionTodos() {
 
   const { error } = await db.from('todos_versions').insert(insertData)
   if (error) return alert('Error saving version.')
-  alert('To-Do version saved.')
+  alert('Version saved.')
 }
 
 async function verVersionesTodos() {
@@ -769,7 +818,6 @@ async function verVersionesTodos() {
   if (notaActual?.id) query = query.eq('note_id', notaActual.id)
 
   const { data } = await query
-
   if (!data?.length) return alert('No saved versions.')
 
   const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
@@ -796,13 +844,8 @@ async function verVersionesTodos() {
   }))
 
   await db.from('todos').insert(restores)
-
-  if (notaActual) {
-    await cargarTodos()
-  } else {
-    await cargarTodosGlobal()
-  }
-
+  if (notaActual) await cargarTodos()
+  else await cargarTodosGlobal()
   renderTodos()
   alert('Version restored.')
 }

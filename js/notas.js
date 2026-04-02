@@ -3,12 +3,111 @@ let libretaActual = null
 let sesionActual = null
 let historialSesion = []
 
+// Apple-style note colors
+const NOTE_COLORS = [
+  { id: 'none',   bg: null,      label: 'Default' },
+  { id: 'yellow', bg: '#fef3c7', label: 'Yellow'  },
+  { id: 'blue',   bg: '#dbeafe', label: 'Blue'    },
+  { id: 'green',  bg: '#dcfce7', label: 'Green'   },
+  { id: 'pink',   bg: '#fce7f3', label: 'Pink'    },
+  { id: 'purple', bg: '#f3e8ff', label: 'Purple'  },
+  { id: 'orange', bg: '#ffedd5', label: 'Orange'  },
+  { id: 'gray',   bg: '#f1f5f9', label: 'Gray'    },
+]
+
 async function iniciarNotas(sesion) {
   sesionActual = sesion
+  iniciarColorPicker()
   await cargarLibretas()
   await cargarTodosSummary()
   await cargarPapeleraCuenta()
   iniciarBusqueda()
+}
+
+// ==================== COLOR PICKER ====================
+
+function iniciarColorPicker() {
+  const swatches = document.getElementById('color-swatches')
+  if (!swatches) return
+  swatches.innerHTML = ''
+
+  NOTE_COLORS.forEach(color => {
+    const div = document.createElement('div')
+    div.className = 'color-swatch'
+    div.title = color.label
+    div.dataset.colorId = color.id
+    div.style.background = color.bg || '#ffffff'
+    if (!color.bg) div.style.border = '1.5px solid var(--border2)'
+    div.onclick = () => aplicarColorNota(color)
+    swatches.appendChild(div)
+  })
+}
+
+function toggleColorPicker() {
+  const popup = document.getElementById('color-picker-popup')
+  if (!popup) return
+  popup.classList.toggle('open')
+
+  if (popup.classList.contains('open')) {
+    // Mark current color as selected
+    const currentColor = notaActual?.color_id || 'none'
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      s.classList.toggle('selected', s.dataset.colorId === currentColor)
+    })
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', cerrarColorPickerFuera)
+    }, 100)
+  }
+}
+
+function cerrarColorPickerFuera(e) {
+  const popup = document.getElementById('color-picker-popup')
+  const btn = document.getElementById('btn-color')
+  if (popup && !popup.contains(e.target) && e.target !== btn) {
+    popup.classList.remove('open')
+    document.removeEventListener('click', cerrarColorPickerFuera)
+  }
+}
+
+async function aplicarColorNota(color) {
+  if (!notaActual) return
+
+  const { error } = await db.from('notes')
+    .update({ color_id: color.id })
+    .eq('id', notaActual.id)
+
+  if (error) return console.error(error)
+
+  notaActual.color_id = color.id
+  aplicarColorEditor(color.bg)
+
+  // Update swatch selection
+  document.querySelectorAll('.color-swatch').forEach(s => {
+    s.classList.toggle('selected', s.dataset.colorId === color.id)
+  })
+
+  // Close picker
+  document.getElementById('color-picker-popup')?.classList.remove('open')
+  document.removeEventListener('click', cerrarColorPickerFuera)
+
+  // Refresh note list to show color
+  if (libretaActual) await cargarNotas(libretaActual.id)
+}
+
+function aplicarColorEditor(bg) {
+  const contenido = document.getElementById('editor-contenido')
+  const titulo = document.getElementById('nota-titulo')
+  const area = document.getElementById('nota-contenido')
+  const footer = document.querySelector('.editor-footer')
+  const toolbar = document.querySelector('.editor-toolbar')
+
+  const color = bg || ''
+  if (contenido) contenido.style.background = color
+  if (titulo) titulo.style.background = color
+  if (area) area.style.background = color
+  if (footer) footer.style.background = color
+  if (toolbar) toolbar.style.background = color
 }
 
 // ==================== LIBRETAS ====================
@@ -98,7 +197,6 @@ async function cargarTodosSummary() {
 
   const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
 
-  // Agrupar columnas unicas por titulo
   const colMap = {}
   allCols.forEach(col => {
     if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
@@ -118,7 +216,7 @@ async function cargarTodosSummary() {
     return
   }
 
-  // ---- Seccion TO-DO ----
+  // To-Do List section
   const labelTodos = document.createElement('div')
   labelTodos.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
   labelTodos.textContent = 'To-Do List'
@@ -131,13 +229,8 @@ async function cargarTodosSummary() {
     <span class="todos-col-name">Pending</span>
     <span class="todos-col-count">${pendientes}</span>
   `
-  pendientesRow.onclick = () => {
-    if (typeof esMobile === 'function' && esMobile()) {
-      mobileNavSelect('todos')
-    } else {
-      abrirTodosGlobalModo('list')
-    }
-  }
+  pendientesRow.onclick = () => typeof esMobile === 'function' && esMobile()
+    ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
   colsList.appendChild(pendientesRow)
 
   const completadosRow = document.createElement('div')
@@ -147,21 +240,16 @@ async function cargarTodosSummary() {
     <span class="todos-col-name">Done</span>
     <span class="todos-col-count">${total - pendientes}</span>
   `
-  completadosRow.onclick = () => {
-    if (typeof esMobile === 'function' && esMobile()) {
-      mobileNavSelect('todos')
-    } else {
-      abrirTodosGlobalModo('list')
-    }
-  }
+  completadosRow.onclick = () => typeof esMobile === 'function' && esMobile()
+    ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
   colsList.appendChild(completadosRow)
 
-  // ---- Separador ----
+  // Separator
   const sep = document.createElement('div')
   sep.style.cssText = 'height:1px;background:var(--border);margin:6px 8px 2px;'
   colsList.appendChild(sep)
 
-  // ---- Seccion KANBAN ----
+  // Kanban section
   const labelKanban = document.createElement('div')
   labelKanban.style.cssText = 'padding:4px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
   labelKanban.textContent = 'Kanban'
@@ -175,15 +263,13 @@ async function cargarTodosSummary() {
       <span class="todos-col-name">${col.title}</span>
       <span class="todos-col-count">${col.count}</span>
     `
-    row.onclick = () => {
-      if (typeof esMobile === 'function' && esMobile()) {
-        mobileNavSelect('todos')
-      } else {
-        abrirTodosGlobalModo('kanban')
-      }
-    }
+    row.onclick = () => typeof esMobile === 'function' && esMobile()
+      ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
     colsList.appendChild(row)
   })
+
+  // Re-patch mobile
+  if (typeof patchTodosSidebar === 'function') setTimeout(patchTodosSidebar, 100)
 }
 
 async function abrirTodosGlobal() {
@@ -240,17 +326,14 @@ async function cargarTodosGlobal() {
 // ==================== PAPELERA ====================
 
 async function cargarPapeleraCuenta() {
-  const { data } = await db
-    .from('trash')
-    .select('id')
-
+  const { data } = await db.from('trash').select('id')
   const count = data?.length || 0
   const el = document.getElementById('papelera-count')
   if (el) el.textContent = count
 }
 
 function abrirPapelera() {
-  alert('Papelera — próximamente.')
+  alert('Trash — coming soon.')
 }
 
 // ==================== NOTAS ====================
@@ -274,13 +357,24 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
   }
 
   data.forEach(nota => {
+    const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
+    const bgColor = colorObj?.bg || ''
+
     const li = document.createElement('li')
     li.className = 'nota-item'
     li.dataset.id = nota.id
+    if (bgColor) li.style.background = bgColor
+
     li.innerHTML = `
-      <div class="nota-item-titulo">
-        ${nota.is_pinned ? '<span class="nota-pin">📌</span>' : ''}
-        ${descifrar(nota.title_enc) || 'Untitled'}
+      <div class="nota-item-header">
+        <div class="nota-item-titulo">
+          ${descifrar(nota.title_enc) || 'Untitled'}
+        </div>
+        <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
+          onclick="event.stopPropagation(); togglePinNota('${nota.id}', this)"
+          title="${nota.is_pinned ? 'Unpin note' : 'Pin note'}">
+          📌
+        </button>
       </div>
       <div class="nota-item-preview">
         ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
@@ -292,6 +386,23 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
   })
 }
 
+async function togglePinNota(notaId, btnEl) {
+  const { data: nota } = await db
+    .from('notes')
+    .select('is_pinned')
+    .eq('id', notaId)
+    .single()
+
+  if (!nota) return
+
+  const nuevoEstado = !nota.is_pinned
+  await db.from('notes').update({ is_pinned: nuevoEstado }).eq('id', notaId)
+
+  if (notaActual?.id === notaId) notaActual.is_pinned = nuevoEstado
+
+  if (libretaActual) await cargarNotas(libretaActual.id)
+}
+
 async function nuevaNota() {
   if (!libretaActual) return alert('Select a notebook first.')
 
@@ -300,7 +411,8 @@ async function nuevaNota() {
     author_id: sesionActual.user.id,
     title_enc: cifrar('New note'),
     content_enc: cifrar(''),
-    is_pinned: false
+    is_pinned: false,
+    color_id: 'none'
   }).select().single()
 
   if (error) return alert('Error creating note.')
@@ -322,7 +434,10 @@ function abrirNota(nota, el) {
   document.getElementById('nota-titulo').value = descifrar(nota.title_enc) || ''
   document.getElementById('nota-contenido').innerHTML = descifrar(nota.content_enc) || ''
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(nota.updated_at)
-  document.getElementById('btn-pin').style.opacity = nota.is_pinned ? '1' : '0.4'
+
+  // Apply color
+  const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
+  aplicarColorEditor(colorObj?.bg || null)
 
   historialSesion.push(document.getElementById('nota-contenido').innerHTML)
 
@@ -372,6 +487,7 @@ async function eliminarNota() {
   if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
   window._hayaCambios = false
   notaActual = null
+  aplicarColorEditor(null)
 
   document.getElementById('editor-placeholder').style.display = 'flex'
   document.getElementById('editor-contenido').style.display = 'none'
@@ -386,12 +502,55 @@ async function togglePin() {
   const nuevoEstado = !notaActual.is_pinned
   await db.from('notes').update({ is_pinned: nuevoEstado }).eq('id', notaActual.id)
   notaActual.is_pinned = nuevoEstado
-  document.getElementById('btn-pin').style.opacity = nuevoEstado ? '1' : '0.4'
   if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
 function ordenarNotas(valor) {
   if (libretaActual) cargarNotas(libretaActual.id, valor)
+}
+
+// ==================== ATTACHMENTS ====================
+
+let attachmentsContext = null // 'note' | 'notebook'
+
+function abrirAttachmentsNota() {
+  if (!notaActual) return alert('Select a note first.')
+  attachmentsContext = 'note'
+  abrirAttachmentsScreen(`Note: ${descifrar(notaActual.title_enc) || 'Untitled'}`)
+}
+
+function abrirAttachmentsLibreta() {
+  if (!libretaActual) return alert('Select a notebook first.')
+  attachmentsContext = 'notebook'
+  abrirAttachmentsScreen(`Notebook: ${descifrar(libretaActual.name_enc)}`)
+}
+
+function abrirAttachmentsScreen(titulo) {
+  const screen = document.getElementById('attachments-screen')
+  const titleEl = document.getElementById('attachments-title')
+  if (screen) screen.classList.add('open')
+  if (titleEl) titleEl.textContent = titulo
+
+  // On mobile show as dedicated view
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('attachments')
+    return
+  }
+}
+
+function cerrarAttachments() {
+  const screen = document.getElementById('attachments-screen')
+  if (screen) screen.classList.remove('open')
+  attachmentsContext = null
+
+  if (typeof esMobile === 'function' && esMobile()) {
+    const vista = notaActual ? 'editor' : 'notas'
+    mobileNavSelect(vista)
+  }
+}
+
+function subirAttachment() {
+  alert('Attachment upload — coming soon.')
 }
 
 // ==================== EDITOR ====================
@@ -454,7 +613,7 @@ async function guardarVersion() {
   })
 
   if (error) return alert('Error saving version.')
-  alert('Version saved successfully.')
+  alert('Version saved.')
 }
 
 async function verVersiones() {
@@ -468,16 +627,16 @@ async function verVersiones() {
   if (!data?.length) return alert('No saved versions for this note.')
 
   const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
-  const seleccion = prompt(`Available versions:\n${lista}\n\nEnter number to restore:`)
-  if (!seleccion) return
+  const sel = prompt(`Versions:\n${lista}\n\nEnter number to restore:`)
+  if (!sel) return
 
-  const idx = parseInt(seleccion) - 1
+  const idx = parseInt(sel) - 1
   if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
 
   document.getElementById('nota-titulo').value = descifrar(data[idx].title_enc)
   document.getElementById('nota-contenido').innerHTML = descifrar(data[idx].content_enc)
   window._hayaCambios = true
-  alert('Version restored. Save the note to confirm.')
+  alert('Version restored. Save to confirm.')
 }
 
 // ==================== ACTIVIDAD ====================
@@ -525,7 +684,7 @@ async function buscarGlobal(termino) {
 
   const { data } = await db
     .from('notes')
-    .select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned')
+    .select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned, color_id')
 
   if (!data) return
 
@@ -547,13 +706,22 @@ async function buscarGlobal(termino) {
   }
 
   resultados.forEach(nota => {
+    const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
+    const bgColor = colorObj?.bg || ''
+
     const li = document.createElement('li')
     li.className = 'nota-item'
     li.dataset.id = nota.id
+    if (bgColor) li.style.background = bgColor
+
     li.innerHTML = `
-      <div class="nota-item-titulo">
-        ${nota.is_pinned ? '<span class="nota-pin">📌</span>' : ''}
-        ${descifrar(nota.title_enc) || 'Untitled'}
+      <div class="nota-item-header">
+        <div class="nota-item-titulo">
+          ${descifrar(nota.title_enc) || 'Untitled'}
+        </div>
+        <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
+          onclick="event.stopPropagation(); togglePinNota('${nota.id}', this)"
+          title="${nota.is_pinned ? 'Unpin' : 'Pin'}">📌</button>
       </div>
       <div class="nota-item-preview">
         ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
@@ -564,9 +732,7 @@ async function buscarGlobal(termino) {
     lista.appendChild(li)
   })
 
-  if (typeof esMobile === 'function' && esMobile()) {
-    mobileNavSelect('notas')
-  }
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('notas')
 }
 
 // ==================== ENCRIPTACION ====================
@@ -585,7 +751,7 @@ function descifrar(texto) {
 
 function formatearFecha(fecha) {
   if (!fecha) return ''
-  return new Date(fecha).toLocaleDateString('es-MX', {
+  return new Date(fecha).toLocaleDateString('en-US', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   })
@@ -593,7 +759,6 @@ function formatearFecha(fecha) {
 
 // ==================== MODULOS ====================
 
-function abrirAdjuntos() { alert('Attachments module — coming soon.') }
 function abrirTodos() { iniciarTodos() }
-function abrirRecordatorio() { alert('Reminder module — coming soon.') }
-function abrirColor() { alert('Color picker — coming soon.') }
+function abrirRecordatorio() { alert('Reminder — coming soon.') }
+function abrirColor() { toggleColorPicker() }

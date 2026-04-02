@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Notas — Mi Suite Web</title>
+  <title>Notes — Mi Suite Web</title>
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/notas.css">
 </head>
@@ -12,10 +12,10 @@
 <nav>
   <strong>Mi Suite Web</strong>
   <div class="nav-right">
-    <a href="../index.html">Inicio</a>
-    <a href="calendario.html">Calendario</a>
-    <a href="peliculas.html">Películas</a>
-    <a href="#" onclick="cerrarSesion()">Salir</a>
+    <a href="../index.html">Home</a>
+    <a href="calendario.html">Calendar</a>
+    <a href="peliculas.html">Movies</a>
+    <a href="#" onclick="cerrarSesion()">Sign out</a>
   </div>
 </nav>
 
@@ -24,21 +24,20 @@
   <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar" id="sidebar">
 
-    <!-- Búsqueda global -->
     <div class="sidebar-header">
       <input class="sidebar-search" id="sidebar-search"
-        placeholder="🔍 Buscar notas..."
+        placeholder="🔍 Search notes..."
         oninput="buscarGlobal(this.value)">
     </div>
 
-    <!-- LIBRETAS -->
+    <!-- NOTEBOOKS -->
     <div class="libretas-wrap">
       <div class="sidebar-section">
-        <span class="sidebar-section-label">Libretas</span>
-        <button class="sidebar-section-add" onclick="nuevaLibreta()" title="Nueva libreta">+</button>
+        <span class="sidebar-section-icon" onclick="nuevaLibreta()" title="New notebook">📚</span>
+        <button class="sidebar-section-add" onclick="nuevaLibreta()" title="New notebook">+</button>
       </div>
       <ul class="libretas-list" id="libretas-list">
-        <li class="libreta-item loading">Cargando...</li>
+        <li class="libreta-item loading">Loading...</li>
       </ul>
     </div>
 
@@ -47,7 +46,7 @@
     <!-- TO-DO'S SUMMARY -->
     <div class="todos-summary-wrap">
       <div class="sidebar-section">
-        <span class="sidebar-section-label">To-Do's</span>
+        <span class="sidebar-section-icon" onclick="abrirTodosGlobal()" title="To-Do's">✅</span>
       </div>
       <div class="todos-summary-card">
         <div class="todos-summary-header" id="todos-summary-header" onclick="abrirTodosGlobal()">
@@ -56,30 +55,27 @@
           <span class="todos-summary-total" id="todos-total-badge">—</span>
         </div>
         <div class="todos-cols-list" id="todos-cols-list">
-          <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">
-            Cargando...
-          </div>
+          <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
         </div>
       </div>
     </div>
 
     <div class="sidebar-divider"></div>
 
-    <!-- PAPELERA -->
+    <!-- TRASH -->
     <div class="papelera-wrap">
       <div class="sidebar-section">
-        <span class="sidebar-section-label">Papelera</span>
+        <span class="sidebar-section-icon" title="Trash">🗑</span>
       </div>
       <div class="papelera-item" onclick="abrirPapelera()">
         <span style="font-size:14px;">🗑</span>
-        <span class="papelera-label">Papelera</span>
+        <span class="papelera-label">Trash</span>
         <span class="papelera-count" id="papelera-count">0</span>
       </div>
     </div>
 
-    <!-- Dark mode -->
     <div class="sidebar-footer">
-      <span class="sidebar-footer-label" id="theme-label">Switch to Dark Mode</span>
+      <span class="sidebar-footer-label" id="theme-label">Dark Mode</span>
       <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
         <div class="theme-toggle-thumb"></div>
       </div>
@@ -89,18 +85,25 @@
 
   <div class="resizer" id="resizer-1"></div>
 
-  <!-- ==================== PANEL NOTAS ==================== -->
+  <!-- ==================== NOTES PANEL ==================== -->
   <section class="notas-panel" id="notas-panel">
     <div class="notas-panel-header">
       <span class="notas-panel-title" id="libreta-nombre">Select a notebook</span>
       <div class="notas-panel-actions">
-        <input type="text" id="buscar-notas" placeholder="Search notes..." class="input-buscar">
+        <input type="text" id="buscar-notas"
+          placeholder="Search in notebook..."
+          class="input-buscar">
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
           <option value="title">Title</option>
         </select>
+      </div>
+      <div class="notas-panel-subactions">
         <button class="btn btn-primary btn-small" onclick="nuevaNota()">+ Note</button>
+        <button class="panel-attach-btn" onclick="abrirAttachmentsLibreta()" id="btn-attach-libreta">
+          📎 Attachments
+        </button>
       </div>
     </div>
     <ul class="notas-list" id="notas-list">
@@ -112,9 +115,26 @@
 
   <!-- ==================== EDITOR ==================== -->
   <section class="editor-panel" id="editor-panel">
+
+    <!-- Attachments screen (overlay) -->
+    <div class="attachments-screen" id="attachments-screen">
+      <div class="attachments-header">
+        <span class="attachments-title" id="attachments-title">Attachments</span>
+        <button onclick="cerrarAttachments()"
+          style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3);">✕</button>
+      </div>
+      <div class="attachments-body" id="attachments-body">
+        <div class="attachments-empty">No attachments yet.</div>
+      </div>
+      <div class="attachments-upload">
+        <button class="upload-btn" onclick="subirAttachment()">+ Add attachment</button>
+      </div>
+    </div>
+
     <div class="editor-placeholder" id="editor-placeholder">
       <p>Select or create a note to get started.</p>
     </div>
+
     <div class="editor-contenido" id="editor-contenido" style="display:none;">
 
       <div class="editor-toolbar">
@@ -124,16 +144,20 @@
         <button onclick="highlight('yellow')" class="hl-yellow" title="Highlight yellow">A</button>
         <button onclick="highlight('pink')" class="hl-pink" title="Highlight pink">A</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="formatear('insertUnorderedList')" title="List">&#8226;</button>
+        <button onclick="formatear('insertUnorderedList')" title="List">•</button>
         <button onclick="formatearBloque('H2')" title="Heading">H</button>
         <span class="toolbar-sep">|</span>
         <button onclick="deshacer()" title="Undo (Ctrl+Z)">↩</button>
-        <button onclick="guardarVersion()" title="Save version">&#128190;</button>
-        <button onclick="verVersiones()" title="Version history">&#128336;</button>
+        <button onclick="verVersiones()" title="Version history">🕐</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="togglePin()" id="btn-pin" title="Pin note">&#128204;</button>
-        <button onclick="abrirColor()" title="Note color">&#127774;</button>
-        <button onclick="eliminarNota()" title="Delete note" class="btn-danger-icon">&#128465;</button>
+        <div class="color-btn-wrap">
+          <button onclick="toggleColorPicker()" title="Note color" id="btn-color">🎨</button>
+          <div class="color-picker-popup" id="color-picker-popup">
+            <div class="color-picker-label">Note color</div>
+            <div class="color-swatches" id="color-swatches"></div>
+          </div>
+        </div>
+        <button onclick="eliminarNota()" title="Delete note" class="btn-danger-icon">🗑</button>
       </div>
 
       <input type="text" id="nota-titulo" class="editor-titulo"
@@ -148,9 +172,8 @@
       <div class="editor-footer">
         <span id="nota-fecha" class="nota-fecha"></span>
         <div class="editor-footer-actions">
-          <button class="btn btn-small" onclick="abrirAdjuntos()">Attachments</button>
-          <button class="btn btn-small" onclick="abrirTodos()">To-Do's</button>
-          <button class="btn btn-small" onclick="abrirRecordatorio()">Reminder</button>
+          <button class="btn btn-small" onclick="abrirAttachmentsNota()">📎 Attachments</button>
+          <button class="btn btn-small" onclick="abrirRecordatorio()">⏰ Reminder</button>
           <button class="btn btn-primary btn-small" onclick="guardarNota()">Save</button>
         </div>
       </div>
@@ -160,7 +183,7 @@
 
   <div class="resizer" id="resizer-3" style="display:none;"></div>
 
-<!-- ==================== TODOS PANEL ==================== -->
+  <!-- ==================== TO-DO'S PANEL ==================== -->
   <section class="todos-panel" id="todos-panel">
     <div class="todos-header">
       <span class="todos-title">To-Do's</span>
@@ -170,7 +193,7 @@
           <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
         </div>
         <div class="todos-icon-btns">
-          <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">&#128336;</button>
+          <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">🕐</button>
         </div>
       </div>
     </div>
@@ -181,25 +204,11 @@
       <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
   </section>
-  
 
 </div>
 
-<!-- Mobile bottom nav -->
-<nav class="mobile-nav" id="mobile-nav">
-  <div class="mobile-nav-item active" id="mnav-inicio" onclick="mobileNavSelect('inicio')">
-    <span class="mobile-nav-icon">📚</span>
-    <span class="mobile-nav-label">Inicio</span>
-  </div>
-  <div class="mobile-nav-item" id="mnav-todos" onclick="mobileNavSelect('todos')">
-    <span class="mobile-nav-icon">✅</span>
-    <span class="mobile-nav-label">To-Do's</span>
-  </div>
-  <div class="mobile-nav-item" id="mnav-papelera" onclick="mobileNavSelect('papelera')">
-    <span class="mobile-nav-icon">🗑</span>
-    <span class="mobile-nav-label">Papelera</span>
-  </div>
-</nav>
+<!-- Mobile nav (hidden — managed by mobile.js) -->
+<nav class="mobile-nav" id="mobile-nav" style="display:none;"></nav>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/app.js"></script>

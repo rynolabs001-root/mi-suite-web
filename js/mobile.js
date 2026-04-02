@@ -79,7 +79,7 @@ function aplicarVistaMobile(vista) {
       actualizarNavbarMobile('editor')
       break
 
-    case 'todos':
+    case 'todos': {
       const todosPanel = document.getElementById('todos-panel')
       if (todosPanel) {
         const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
@@ -93,20 +93,35 @@ function aplicarVistaMobile(vista) {
         todosPanel.style.position = 'relative'
         todosPanel.style.zIndex = '10'
       }
-
-      // Ocultar barra inferior duplicada en mobile
+      // Hide bottom add bar on mobile — use navbar button
       const addBar = document.getElementById('todo-add-bar')
-      if (addBar && esMobile()) addBar.style.display = 'none'
+      if (addBar) addBar.style.display = 'none'
 
       actualizarNavbarMobile('todos')
       notaActual = null
       cargarTodosGlobal().then(() => {
         renderTodos()
-        // Re-aplicar modo actual para que kanban cargue bien
         const modoActual = todosMode || 'list'
         setTodosMode(modoActual)
       })
       break
+    }
+
+    case 'attachments': {
+      // Show attachments screen as full screen
+      const editorPanel = document.getElementById('editor-panel')
+      if (editorPanel) {
+        const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
+        editorPanel.style.display = 'flex'
+        editorPanel.style.width = '100%'
+        editorPanel.style.height = altura
+        editorPanel.style.flex = 'none'
+      }
+      const attScreen = document.getElementById('attachments-screen')
+      if (attScreen) attScreen.classList.add('open')
+      actualizarNavbarMobile('attachments')
+      break
+    }
 
     case 'papelera':
       actualizarNavbarMobile('papelera')
@@ -115,7 +130,7 @@ function aplicarVistaMobile(vista) {
   }
 }
 
-// ==================== NAVBAR DINÁMICO ====================
+// ==================== NAVBAR DINAMICO ====================
 
 function actualizarNavbarMobile(vista) {
   const nav = document.querySelector('nav')
@@ -125,10 +140,10 @@ function actualizarNavbarMobile(vista) {
 
     case 'inicio':
       nav.innerHTML = `
-        <strong>Mi Suite Web</strong>
-        <div class="nav-right">
-          <a href="#" onclick="cerrarSesion()">Salir</a>
-          <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" style="width:32px;height:18px;">
+        <strong style="font-size:15px;font-weight:700;letter-spacing:-0.3px;">Mi Suite Web</strong>
+        <div class="nav-right" style="gap:10px;">
+          <a href="#" onclick="cerrarSesion()" style="font-size:13px;">Sign out</a>
+          <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" style="width:32px;height:18px;flex-shrink:0;">
             <div class="theme-toggle-thumb"></div>
           </div>
         </div>
@@ -139,15 +154,15 @@ function actualizarNavbarMobile(vista) {
     case 'notas':
       nav.innerHTML = `
         <a href="#" onclick="mobileNavSelect('inicio')"
-          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
-          ‹ Inicio
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+          ‹ Home
         </a>
         <strong style="font-size:13px;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px;">
-          ${libretaActual ? descifrar(libretaActual.name_enc) : 'Notas'}
+          ${libretaActual ? descifrar(libretaActual.name_enc) : 'Notebooks'}
         </strong>
         <button onclick="nuevaNota()"
-          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
-          + Nota
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 14px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          + Note
         </button>
       `
       break
@@ -155,15 +170,13 @@ function actualizarNavbarMobile(vista) {
     case 'editor':
       nav.innerHTML = `
         <a href="#" onclick="guardarYRegresar()"
-          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
-          ‹ Inicio
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+          ‹ Home
         </a>
-        <strong style="font-size:13px;flex:1;text-align:center;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;"
-          id="nota-titulo-nav">
-          Note
-        </strong>
+        <strong style="font-size:13px;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;"
+          id="nota-titulo-nav">Note</strong>
         <button onclick="guardarYRegresar()"
-          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 14px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;flex-shrink:0;">
           Save
         </button>
       `
@@ -177,13 +190,27 @@ function actualizarNavbarMobile(vista) {
     case 'todos':
       nav.innerHTML = `
         <a href="#" onclick="mobileNavSelect('inicio')"
-          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
-          ‹ Inicio
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+          ‹ Home
         </a>
         <strong style="font-size:13px;flex:1;text-align:center;">To-Do's</strong>
         <button onclick="agregarTodoMobile()"
-          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
-          + Nueva
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 14px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          + Task
+        </button>
+      `
+      break
+
+    case 'attachments':
+      nav.innerHTML = `
+        <a href="#" onclick="cerrarAttachments()"
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+          ‹ Back
+        </a>
+        <strong style="font-size:13px;flex:1;text-align:center;">Attachments</strong>
+        <button onclick="subirAttachment()"
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 14px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          + Add
         </button>
       `
       break
@@ -191,11 +218,11 @@ function actualizarNavbarMobile(vista) {
     case 'papelera':
       nav.innerHTML = `
         <a href="#" onclick="mobileNavSelect('inicio')"
-          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
-          ‹ Inicio
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;flex-shrink:0;">
+          ‹ Home
         </a>
-        <strong style="font-size:13px;flex:1;text-align:center;">Papelera</strong>
-        <span style="width:60px;"></span>
+        <strong style="font-size:13px;flex:1;text-align:center;">Trash</strong>
+        <span style="width:60px;flex-shrink:0;"></span>
       `
       break
   }
@@ -212,9 +239,17 @@ async function guardarYRegresar() {
 
 function agregarTodoMobile() {
   const input = document.getElementById('todo-input')
-  if (input) {
+  if (!input) return
+
+  // Show input temporarily
+  const addBar = document.getElementById('todo-add-bar')
+  if (addBar) {
+    addBar.style.display = 'flex'
     input.focus()
-    input.scrollIntoView({ behavior: 'smooth' })
+    // Hide again after blur
+    input.addEventListener('blur', () => {
+      setTimeout(() => { if (addBar) addBar.style.display = 'none' }, 200)
+    }, { once: true })
   }
 }
 
@@ -226,22 +261,16 @@ function patchTodosSidebar() {
 
   if (header) {
     header.onclick = function() {
-      if (esMobile()) {
-        mobileNavSelect('todos')
-      } else {
-        if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
-      }
+      if (esMobile()) mobileNavSelect('todos')
+      else if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
     }
   }
 
   if (colsList) {
     colsList.querySelectorAll('.todos-col-row').forEach(row => {
       row.onclick = function() {
-        if (esMobile()) {
-          mobileNavSelect('todos')
-        } else {
-          if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
-        }
+        if (esMobile()) mobileNavSelect('todos')
+        else if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
       }
     })
   }
@@ -251,11 +280,8 @@ function patchPapeleraSidebar() {
   const item = document.querySelector('.papelera-item')
   if (item) {
     item.onclick = function() {
-      if (esMobile()) {
-        mobileNavSelect('papelera')
-      } else {
-        abrirPapelera()
-      }
+      if (esMobile()) mobileNavSelect('papelera')
+      else abrirPapelera()
     }
   }
 }
@@ -279,6 +305,7 @@ document.addEventListener('touchend', e => {
       case 'editor': guardarYRegresar(); break
       case 'notas': mobileNavSelect('inicio'); break
       case 'todos': mobileNavSelect('inicio'); break
+      case 'attachments': cerrarAttachments(); break
       case 'papelera': mobileNavSelect('inicio'); break
     }
   }
@@ -292,10 +319,10 @@ function restaurarDesktop() {
     nav.innerHTML = `
       <strong>Mi Suite Web</strong>
       <div class="nav-right">
-        <a href="../index.html">Inicio</a>
-        <a href="calendario.html">Calendario</a>
-        <a href="peliculas.html">Películas</a>
-        <a href="#" onclick="cerrarSesion()">Salir</a>
+        <a href="../index.html">Home</a>
+        <a href="calendario.html">Calendar</a>
+        <a href="peliculas.html">Movies</a>
+        <a href="#" onclick="cerrarSesion()">Sign out</a>
       </div>
     `
   }
@@ -305,14 +332,32 @@ function restaurarDesktop() {
   const editorPanel = document.getElementById('editor-panel')
   const todosPanel = document.getElementById('todos-panel')
   const addBar = document.getElementById('todo-add-bar')
+  const attScreen = document.getElementById('attachments-screen')
 
   if (sidebar) sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);'
   if (notasPanel) notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);'
   if (editorPanel) editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;'
   if (todosPanel) todosPanel.style.cssText = 'display:none;'
   if (addBar) addBar.style.display = 'flex'
+  if (attScreen) attScreen.classList.remove('open')
 
   aplicarTheme()
+}
+
+// ==================== SIDEBAR INICIO MOBILE STYLING ====================
+
+function aplicarEstiloInicioMobile() {
+  if (!esMobile()) return
+
+  const sidebar = document.getElementById('sidebar')
+  if (!sidebar) return
+
+  // Left-align title area
+  const header = sidebar.querySelector('.sidebar-header')
+  if (header) {
+    header.style.justifyContent = 'flex-start'
+    header.style.padding = '10px 14px 8px'
+  }
 }
 
 // ==================== CSS MOBILE ====================
@@ -332,16 +377,17 @@ mobileNavStyle.textContent = `
 
     nav strong {
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: -0.3px;
       flex: 1;
-      text-align: center;
+      text-align: left;
     }
 
     .notas-layout {
       flex-direction: column;
       height: auto;
       overflow: visible;
+      position: relative;
     }
 
     .editor-toolbar {
@@ -365,24 +411,22 @@ mobileNavStyle.textContent = `
     .libretas-wrap { flex: none; max-height: 42vh; }
     .todos-summary-wrap { flex: none; }
 
-    /* Separacion visual entre To-Do's y Kanban en sidebar */
-    .todos-summary-card {
-      margin-bottom: 2px;
+    /* Sidebar sections — icon only, no text labels */
+    .sidebar-section-label { display: none; }
+    .sidebar-section { padding: 6px 10px 2px; }
+
+    /* Left-align nav title on home */
+    nav strong { text-align: left !important; }
+
+    /* Attachments screen full height on mobile */
+    .attachments-screen {
+      top: 52px;
+      position: fixed;
+      z-index: 100;
     }
 
-    .todos-cols-list .todos-col-row:first-child {
-      border-top: 2px solid var(--border);
-      margin-top: 4px;
-      padding-top: 8px;
-    }
-
-    /* Separador visual entre lista y kanban en sidebar */
-    .todos-summary-wrap::before {
-      content: '';
-      display: block;
-      height: 1px;
-      background: var(--border);
-      margin: 4px 8px;
+    .attachments-body {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     }
   }
 
@@ -393,39 +437,13 @@ mobileNavStyle.textContent = `
 `
 document.head.appendChild(mobileNavStyle)
 
-// ==================== SEPARACION VISUAL EN SIDEBAR MOBILE ====================
-
-function agregarSeparacionSidebar() {
-  if (!esMobile()) return
-
-  const todosWrap = document.querySelector('.todos-summary-wrap')
-  if (!todosWrap) return
-
-  // Agregar etiqueta de separacion entre To-Do's lista y Kanban
-  const colsList = document.getElementById('todos-cols-list')
-  if (!colsList) return
-
-  const rows = colsList.querySelectorAll('.todos-col-row')
-  if (rows.length === 0) return
-
-  // Encontrar el separador entre lista y kanban (despues de "To Do")
-  // Agregar linea divisora despues de la primera columna
-  rows.forEach((row, i) => {
-    if (i === 0) {
-      row.style.borderTop = '1px solid var(--border)'
-      row.style.paddingTop = '8px'
-      row.style.marginTop = '2px'
-    }
-  })
-}
-
 // ==================== INIT ====================
 
 document.addEventListener('DOMContentLoaded', () => {
   iniciarMobileNav()
+  aplicarEstiloInicioMobile()
   setTimeout(() => {
     patchTodosSidebar()
     patchPapeleraSidebar()
-    agregarSeparacionSidebar()
   }, 1500)
 })
