@@ -793,11 +793,15 @@ select {
 
 .reporte-body {
   overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.25s ease;
+  flex: 0;
+  min-height: 0;
+  transition: flex 0.25s ease;
 }
 
-.reporte-body.open { max-height: 400px; overflow-y: auto; }
+.reporte-body.open {
+  flex: 1;
+  overflow-y: auto;
+}
 
 .reporte-item {
   display: flex;

@@ -440,14 +440,25 @@ function renderReporte(modo) {
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
-  document.querySelectorAll('.reporte-body').forEach(body => {
-    body.classList.toggle('open', !reporteOculto)
-    if (!reporteOculto) {
-      body.style.maxHeight = ''
+
+  document.querySelectorAll('.reporte-wrap').forEach(wrap => {
+    const bodyEl = wrap.querySelector('.reporte-body')
+    const toggle = wrap.querySelector('.reporte-toggle')
+    const zona = wrap.parentElement?.querySelector('#todos-zona') ||
+                 wrap.previousElementSibling
+
+    if (bodyEl) {
+      bodyEl.classList.toggle('open', !reporteOculto)
+      // Cuando está colapsado flex=0, cuando abierto flex=1
+      bodyEl.style.flex = reporteOculto ? '0' : '1'
+      bodyEl.style.overflow = reporteOculto ? 'hidden' : 'auto'
     }
-  })
-  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
-    toggle.classList.toggle('open', !reporteOculto)
+
+    if (toggle) toggle.classList.toggle('open', !reporteOculto)
+
+    // El wrap toma el 30% cuando abierto, 0 cuando colapsado
+    wrap.style.flex = reporteOculto ? '0' : '3'
+    wrap.style.overflow = reporteOculto ? 'hidden' : ''
   })
 }
 
