@@ -7,14 +7,14 @@ let _expandedCard = null
 let _expandedTodo = null
 let reporteOculto = false
 
+// Kanban default columns (excluding source)
+const KANBAN_DEFAULT_COLS = ['In Progress', 'Negotiating', 'Closed']
+const KANBAN_CLOSED_COL = 'Closed'
+const KANBAN_SOURCE_COL = "To-Do's"
+
 // ==================== INICIAR ====================
 
 async function iniciarTodos() {
-  if (!notaActual) {
-    alert('Please select a note first.')
-    return
-  }
-
   todosPanel = document.getElementById('todos-panel')
   if (!todosPanel) return
 
@@ -32,7 +32,7 @@ async function iniciarTodos() {
   if (resizer3) resizer3.style.display = 'block'
   if (editor) { editor.style.flex = '1'; editor.style.minWidth = '300px' }
 
-  await cargarTodos()
+  await cargarTodosGlobal()
   renderTodos()
 }
 
@@ -52,40 +52,52 @@ function cerrarTodos() {
 
 // ==================== CARGAR ====================
 
-async function cargarTodos() {
-  if (!notaActual) return
-
-  const { data: cols } = await db
-    .from('kanban_columns')
-    .select('*')
-    .eq('note_id', notaActual.id)
-    .order('sort_order')
-
-  if (!cols || cols.length === 0) {
-    await crearColumnasDefault()
-  } else {
-    kanbanColumns = cols
-  }
-
+async function cargarTodosGlobal() {
+  // Load all todos
   const { data: todos } = await db
     .from('todos')
     .select('*')
-    .eq('note_id', notaActual.id)
     .order('sort_order')
 
-  todosList = todos || []
-}
+  const seenIds = new Set()
+  todosList = (todos || []).filter(t => {
+    if (seenIds.has(t.id)) return false
+    seenIds.add(t.id)
+    return true
+  })
 
-async function crearColumnasDefault() {
-  const defaults = ['To Do', 'In Progress', 'Done']
-  const inserts = defaults.map((title, i) => ({
-    note_id: notaActual?.id || null,
-    title,
-    sort_order: i,
-    created_by: sesionActual.user.id
-  }))
-  const { data } = await db.from('kanban_columns').insert(inserts).select()
-  kanbanColumns = data || []
+  // Load kanban columns (not the source col)
+  const { data: cols } = await db
+    .from('kanban_columns')
+    .select('*')
+    .order('sort_order')
+
+  const realCols = (cols || []).filter(c => c.title !== 'To Do' && c.title !== KANBAN_SOURCE_COL)
+  const seenTitles = new Set()
+  let uniqueCols = realCols.filter(c => {
+    if (seenTitles.has(c.title)) return false
+    seenTitles.add(c.title)
+    return true
+  })
+
+  // Ensure default columns exist
+  for (const title of KANBAN_DEFAULT_COLS) {
+    if (!uniqueCols.find(c => c.title === title)) {
+      const { data } = await db.from('kanban_columns').insert({
+        title,
+        sort_order: uniqueCols.length,
+        created_by: sesionActual.user.id
+      }).select().single()
+      if (data) uniqueCols.push(data)
+    }
+  }
+
+  // Always put Closed last
+  const closedCol = uniqueCols.find(c => c.title === KANBAN_CLOSED_COL)
+  const otherCols = uniqueCols.filter(c => c.title !== KANBAN_CLOSED_COL)
+  kanbanColumns = closedCol ? [...otherCols, closedCol] : otherCols
+
+  await cargarTodosSummary()
 }
 
 // ==================== RENDER ====================
@@ -111,7 +123,7 @@ function diasEntre(inicio, fin) {
 }
 
 function diasVencidos(todo) {
-  if (todo.status === 'done') return -1
+  if (todo.status === 'done' || todo.status === 'closed') return -1
   return diasEntre(todo.started_at, null) || 0
 }
 
@@ -119,27 +131,20 @@ function diasVencidos(todo) {
 
 function renderLista() {
   const body = document.getElementById('todos-body')
-  body.style.display = 'flex'
-  body.style.flexDirection = 'column'
-  body.style.overflowY = 'hidden'
-  body.style.overflowX = 'hidden'
-  body.style.padding = '0'
+  body.style.cssText = 'display:flex;flex-direction:column;overflow-y:hidden;overflow-x:hidden;padding:0;'
   body.innerHTML = ''
 
-  // Update panel title
   const title = document.getElementById('todos-panel-title')
   if (title) title.textContent = "To-Do's"
 
   const zona = document.createElement('div')
   zona.id = 'todos-zona'
-  zona.style.padding = '10px'
-  zona.style.flex = reporteOculto ? '1' : '7'
-  zona.style.overflowY = 'auto'
-  zona.style.minHeight = '0'
+  zona.style.cssText = `padding:10px;flex:${reporteOculto ? '1' : '7'};overflow-y:auto;min-height:0;`
   body.appendChild(zona)
 
+  // Only show non-closed todos in list
   const pendientes = todosList
-    .filter(t => t.status !== 'done')
+    .filter(t => t.status !== 'done' && t.status !== 'closed')
     .sort((a, b) => diasVencidos(b) - diasVencidos(a))
 
   const hechos = todosList
@@ -178,10 +183,7 @@ function renderLista() {
   })
 
   const rw = renderReporte('lista')
-  rw.style.flex = reporteOculto ? '0' : '3'
-  rw.style.minHeight = '0'
-  rw.style.display = 'flex'
-  rw.style.flexDirection = 'column'
+  rw.style.cssText = `flex:${reporteOculto ? '0' : '3'};min-height:0;display:flex;flex-direction:column;`
   body.appendChild(rw)
 }
 
@@ -227,44 +229,31 @@ function crearTodoItem(todo) {
 
 function renderKanban() {
   const body = document.getElementById('todos-body')
-  body.style.display = 'flex'
-  body.style.flexDirection = 'column'
-  body.style.padding = '0'
-  body.style.overflowY = 'hidden'
+  body.style.cssText = 'display:flex;flex-direction:column;padding:0;overflow-y:hidden;'
   body.innerHTML = ''
 
-  // Update panel title
   const title = document.getElementById('todos-panel-title')
   if (title) title.textContent = 'Kanban'
 
   const zona = document.createElement('div')
-  zona.style.display = 'flex'
-  zona.style.gap = '8px'
-  zona.style.overflowX = 'auto'
-  zona.style.overflowY = 'auto'
-  zona.style.alignItems = 'flex-start'
-  zona.style.padding = '10px'
-  zona.style.flex = reporteOculto ? '1' : '7'
-  zona.style.minHeight = '0'
+  zona.style.cssText = `display:flex;gap:8px;overflow-x:auto;overflow-y:auto;align-items:flex-start;padding:10px;flex:${reporteOculto ? '1' : '7'};min-height:0;`
   body.appendChild(zona)
 
-  if (!kanbanColumns.length) {
-    zona.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:2rem;width:100%;">No columns yet. Add tasks first.</p>'
-    const rw = renderReporte('kanban')
-    rw.style.flex = reporteOculto ? '0' : '3'
-    rw.style.minHeight = '0'
-    rw.style.display = 'flex'
-    rw.style.flexDirection = 'column'
-    body.appendChild(rw)
-    return
-  }
+  // Source column = To-Do's list (virtual, not from DB)
+  const sourceTodos = todosList
+    .filter(t => t.status !== 'done' && t.status !== 'closed')
+    .sort((a, b) => diasVencidos(b) - diasVencidos(a))
 
-  const esOwner = !notaActual || notaActual?.author_id === sesionActual?.user?.id
+  const sourceColDiv = crearKanbanColSource(sourceTodos)
+  zona.appendChild(sourceColDiv)
 
-  // Strict deduplication — track rendered IDs globally per render
+  // User-defined columns
   const renderedIds = new Set()
+  // Mark source todos as rendered
+  sourceTodos.forEach(t => renderedIds.add(t.id))
 
   kanbanColumns.forEach(col => {
+    const isLocked = col.title === KANBAN_CLOSED_COL
     const items = todosList
       .filter(t => {
         if (t.kanban_column_id !== col.id) return false
@@ -272,26 +261,24 @@ function renderKanban() {
         renderedIds.add(t.id)
         return true
       })
-      .sort((a, b) => a.sort_order - b.sort_order)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
 
     const colDiv = document.createElement('div')
-    colDiv.className = 'kanban-col'
+    colDiv.className = `kanban-col${isLocked ? ' col-closed' : ''}`
     colDiv.dataset.colId = col.id
-    colDiv.style.minWidth = '150px'
-    colDiv.style.flex = '1'
-    colDiv.style.overflowY = 'auto'
+    colDiv.style.cssText = 'min-width:150px;flex:1;overflow-y:auto;'
 
     colDiv.innerHTML = `
       <div class="kanban-col-header">
-        <span class="kanban-col-title"
-          contenteditable="${esOwner}"
+        <span class="kanban-col-title ${isLocked ? 'closed-title' : ''}"
+          contenteditable="${!isLocked}"
           data-col-id="${col.id}"
           data-original="${col.title}"
-          onblur="renombrarColumna('${col.id}', this)">
+          ${!isLocked ? `onblur="renombrarColumna('${col.id}', this)"` : ''}>
           ${col.title}
         </span>
         <span class="kanban-col-count">${items.length}</span>
-        ${esOwner ? `<button class="kanban-col-delete" onclick="eliminarColumna('${col.id}')">✕</button>` : ''}
+        ${!isLocked ? `<button class="kanban-col-delete" onclick="eliminarColumna('${col.id}')">✕</button>` : ''}
       </div>
     `
 
@@ -300,32 +287,41 @@ function renderKanban() {
     addBtn.textContent = '+ Add task'
     addBtn.onclick = () => agregarTodoEnColumna(col.id)
 
-    items.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, col.id)))
-    colDiv.appendChild(addBtn)
+    items.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, col.id, isLocked)))
+    if (!isLocked) colDiv.appendChild(addBtn)
 
+    // Drop zone
     colDiv.addEventListener('dragover', e => {
       e.preventDefault()
       const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
       limpiarIndicadores(colDiv)
       const ind = crearIndicador()
-      afterEl ? colDiv.insertBefore(ind, afterEl) : colDiv.insertBefore(ind, addBtn)
+      afterEl ? colDiv.insertBefore(ind, afterEl) : colDiv.insertBefore(ind, isLocked ? undefined : addBtn)
     })
 
     colDiv.addEventListener('dragleave', e => {
       if (!colDiv.contains(e.relatedTarget)) limpiarIndicadores(colDiv)
     })
 
-    colDiv.addEventListener('drop', e => {
+    colDiv.addEventListener('drop', async e => {
       e.preventDefault()
       limpiarIndicadores(colDiv)
       if (!draggedTodo) return
 
-      const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
       const todo = todosList.find(t => t.id === draggedTodo)
       if (!todo) return
 
+      // Moving to Closed — archive the card
+      if (isLocked) {
+        await moverAClosedKanban(todo, col.id)
+        draggedTodo = null
+        return
+      }
+
+      const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
       todosList = todosList.filter(t => t.id !== draggedTodo)
       todo.kanban_column_id = col.id
+      todo.status = 'in_progress'
 
       if (!afterEl) {
         todo.sort_order = todosList.filter(t => t.kanban_column_id === col.id).length
@@ -338,33 +334,115 @@ function renderKanban() {
       const colItems = todosList.filter(t => t.kanban_column_id === col.id)
       colItems.forEach((t, i) => t.sort_order = i)
 
-      renderTodos()
-
-      Promise.all([
-        db.from('todos').update({ kanban_column_id: col.id }).eq('id', draggedTodo),
-        ...colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id))
-      ])
+      await db.from('todos').update({ kanban_column_id: col.id, status: 'in_progress' }).eq('id', draggedTodo)
+      await Promise.all(colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)))
 
       draggedTodo = null
+      renderTodos()
+      await cargarTodosSummary()
     })
 
     zona.appendChild(colDiv)
   })
 
-  if (kanbanColumns.length < 6 && esOwner) {
+  // Add column button (max 6 total = source + 5 user cols including Closed)
+  const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
+  if (userCols.length < 5) {
     const addCol = document.createElement('button')
     addCol.className = 'kanban-add-col'
     addCol.textContent = '+ Add column'
     addCol.onclick = agregarColumna
-    zona.appendChild(addCol)
+    // Insert before Closed
+    zona.insertBefore(addCol, zona.lastChild)
   }
 
   const rw = renderReporte('kanban')
-  rw.style.flex = reporteOculto ? '0' : '3'
-  rw.style.minHeight = '0'
-  rw.style.display = 'flex'
-  rw.style.flexDirection = 'column'
+  rw.style.cssText = `flex:${reporteOculto ? '0' : '3'};min-height:0;display:flex;flex-direction:column;`
   body.appendChild(rw)
+}
+
+function crearKanbanColSource(sourceTodos) {
+  const colDiv = document.createElement('div')
+  colDiv.className = 'kanban-col col-source'
+  colDiv.dataset.colId = 'source'
+  colDiv.style.cssText = 'min-width:150px;flex:1;overflow-y:auto;'
+
+  colDiv.innerHTML = `
+    <div class="kanban-col-header">
+      <span class="kanban-col-title source-title">✅ To-Do's</span>
+      <span class="kanban-col-count">${sourceTodos.length}</span>
+    </div>
+  `
+
+  sourceTodos.forEach(todo => {
+    const card = crearKanbanCard(todo, 'source', false, true)
+    colDiv.appendChild(card)
+  })
+
+  // Drop zone to move back to To-Do's
+  colDiv.addEventListener('dragover', e => {
+    e.preventDefault()
+    const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
+    limpiarIndicadores(colDiv)
+    const ind = crearIndicador()
+    afterEl ? colDiv.insertBefore(ind, afterEl) : colDiv.appendChild(ind)
+  })
+
+  colDiv.addEventListener('dragleave', e => {
+    if (!colDiv.contains(e.relatedTarget)) limpiarIndicadores(colDiv)
+  })
+
+  colDiv.addEventListener('drop', async e => {
+    e.preventDefault()
+    limpiarIndicadores(colDiv)
+    if (!draggedTodo) return
+
+    const todo = todosList.find(t => t.id === draggedTodo)
+    if (!todo) return
+
+    // Move back to To-Do's = remove from kanban column
+    todo.kanban_column_id = null
+    todo.status = 'pending'
+    todosList = todosList.filter(t => t.id !== draggedTodo)
+    todosList.unshift(todo)
+
+    await db.from('todos').update({ kanban_column_id: null, status: 'pending' }).eq('id', draggedTodo)
+    draggedTodo = null
+    renderTodos()
+    await cargarTodosSummary()
+  })
+
+  return colDiv
+}
+
+async function moverAClosedKanban(todo, colId) {
+  todo.kanban_column_id = colId
+  todo.status = 'closed'
+  todo.closed_at = new Date().toISOString()
+
+  await db.from('todos').update({
+    kanban_column_id: colId,
+    status: 'closed',
+    completed_at: new Date().toISOString()
+  }).eq('id', todo.id)
+
+  // Remove from active list — will show as archived
+  todosList = todosList.filter(t => t.id !== todo.id)
+  renderTodos()
+  await cargarTodosSummary()
+}
+
+// Archive closed todos to log on sign out
+async function archivarTarjetasCerradas() {
+  const { data: closedTodos } = await db
+    .from('todos')
+    .select('*')
+    .eq('status', 'closed')
+
+  if (!closedTodos?.length) return
+
+  // They are already in the DB with status=closed and completed_at set
+  // The activity log will pick them up on next render
 }
 
 // ==================== REPORTE ====================
@@ -372,20 +450,17 @@ function renderKanban() {
 function renderReporte(modo) {
   const wrap = document.createElement('div')
   wrap.className = 'reporte-wrap'
-  wrap.style.display = 'flex'
-  wrap.style.flexDirection = 'column'
-  wrap.style.minHeight = '0'
-  wrap.style.flexShrink = '0'
+  wrap.style.cssText = 'display:flex;flex-direction:column;min-height:0;flex-shrink:0;'
 
   const isOpen = !reporteOculto
 
   const pendientes = todosList
-    .filter(t => t.status !== 'done')
+    .filter(t => t.status !== 'done' && t.status !== 'closed')
     .sort((a, b) => diasEntre(b.started_at, null) - diasEntre(a.started_at, null))
 
   const cerrados = todosList
-    .filter(t => t.status === 'done')
-    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+    .filter(t => t.status === 'done' || t.status === 'closed')
+    .sort((a, b) => new Date(b.completed_at || b.updated_at) - new Date(a.completed_at || a.updated_at))
 
   const items = [...pendientes, ...cerrados]
 
@@ -404,29 +479,32 @@ function renderReporte(modo) {
 
   const bodyEl = document.createElement('div')
   bodyEl.className = 'reporte-body'
-  if (isOpen) {
-    bodyEl.classList.add('open')
-    bodyEl.style.height = '160px'
-  }
+  if (isOpen) { bodyEl.classList.add('open'); bodyEl.style.height = '160px' }
 
   if (!items.length) {
     bodyEl.innerHTML = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'
   } else {
     items.forEach(todo => {
       const col = kanbanColumns.find(c => c.id === todo.kanban_column_id)
-      const dias = todo.status === 'done'
+      const isClosed = todo.status === 'closed'
+      const dias = (todo.status === 'done' || isClosed)
         ? diasEntre(todo.started_at, todo.completed_at)
         : diasEntre(todo.started_at, null)
-      const diasLabel = dias !== null ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`) : '—'
-      const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
+
+      const diasLabel = dias !== null
+        ? ((todo.status === 'done' || isClosed) ? `${dias}d` : `${dias}d open`)
+        : '—'
+
+      const diasClass = (todo.status === 'done' || isClosed) ? 'ok' : (dias > 7 ? 'vencido' : '')
 
       const row = document.createElement('div')
       row.className = 'reporte-item'
       row.innerHTML = `
-        <div class="reporte-dot ${todo.status}"></div>
+        <div class="reporte-dot ${isClosed ? 'closed' : todo.status}"></div>
         <div style="flex:1;min-width:0;">
           <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
           ${modo === 'kanban' && col ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>` : ''}
+          ${isClosed ? `<div style="font-size:10px;color:var(--success);">Closed · ${fmtFecha(todo.completed_at)}</div>` : ''}
         </div>
         <div class="reporte-fechas">
           <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
@@ -447,19 +525,11 @@ function toggleReporte() {
   reporteOculto = !reporteOculto
 
   document.querySelectorAll('.reporte-body').forEach(el => {
-    if (reporteOculto) {
-      el.classList.remove('open')
-      el.style.height = '0'
-    } else {
-      el.classList.add('open')
-      el.style.height = '160px'
-    }
+    if (reporteOculto) { el.classList.remove('open'); el.style.height = '0' }
+    else { el.classList.add('open'); el.style.height = '160px' }
   })
 
-  document.querySelectorAll('.reporte-toggle').forEach(el => {
-    el.classList.toggle('open', !reporteOculto)
-  })
-
+  document.querySelectorAll('.reporte-toggle').forEach(el => el.classList.toggle('open', !reporteOculto))
   document.querySelectorAll('.reporte-wrap').forEach(el => {
     el.style.flex = reporteOculto ? '0' : '3'
     el.style.overflow = reporteOculto ? 'hidden' : ''
@@ -469,37 +539,38 @@ function toggleReporte() {
   if (zona) zona.style.flex = reporteOculto ? '1' : '7'
 }
 
-// ==================== CARD KANBAN ====================
+// ==================== KANBAN CARD ====================
 
-function crearKanbanCard(todo, colId) {
+function crearKanbanCard(todo, colId, isLocked = false, isSource = false) {
   const card = document.createElement('div')
-  card.className = 'kanban-card'
-  card.draggable = true
+  card.className = `kanban-card${isLocked ? ' closed-card' : ''}`
+  card.draggable = !isLocked
   card.dataset.id = todo.id
 
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
-    ${todo.due_date ? `<div class="kanban-card-date">${fmtFecha(todo.due_date)}</div>` : ''}
     <div style="font-size:10px;color:var(--text3);margin-top:3px;">${fmtFecha(todo.started_at)}</div>
   `
 
-  card.addEventListener('dragstart', e => {
-    if (_expandedCard) return e.preventDefault()
-    draggedTodo = todo.id
-    e.dataTransfer.effectAllowed = 'move'
-    setTimeout(() => card.style.opacity = '0.4', 0)
-  })
+  if (!isLocked) {
+    card.addEventListener('dragstart', e => {
+      if (_expandedCard) return e.preventDefault()
+      draggedTodo = todo.id
+      e.dataTransfer.effectAllowed = 'move'
+      setTimeout(() => card.style.opacity = '0.4', 0)
+    })
 
-  card.addEventListener('dragend', () => {
-    card.style.opacity = '1'
-    draggedTodo = null
-    document.querySelectorAll('.drop-indicator').forEach(el => el.remove())
-  })
+    card.addEventListener('dragend', () => {
+      card.style.opacity = '1'
+      draggedTodo = null
+      document.querySelectorAll('.drop-indicator').forEach(el => el.remove())
+    })
 
-  card.addEventListener('click', e => {
-    e.stopPropagation()
-    abrirTodoCard(todo, card)
-  })
+    card.addEventListener('click', e => {
+      e.stopPropagation()
+      if (!isSource) abrirTodoCard(todo, card)
+    })
+  }
 
   return card
 }
@@ -545,7 +616,6 @@ function cerrarCardExpandida(cardEl, todo) {
   cardEl.draggable = true
   cardEl.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
-    ${todo.due_date ? `<div class="kanban-card-date">${fmtFecha(todo.due_date)}</div>` : ''}
     <div style="font-size:10px;color:var(--text3);margin-top:3px;">${fmtFecha(todo.started_at)}</div>
   `
   if (cardEl._clickFuera) {
@@ -587,27 +657,21 @@ async function agregarTodo() {
   const texto = input.value.trim()
   if (!texto) return
 
-  // Assign to first kanban column by default
-  const colDefault = kanbanColumns[0]?.id || null
-  const noteId = notaActual?.id || null
-
   const insertData = {
     text_enc: cifrar(texto),
     status: 'pending',
-    kanban_column_id: colDefault,
+    kanban_column_id: null,
     sort_order: todosList.length,
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
   }
-  if (noteId) insertData.note_id = noteId
 
   const { data } = await db.from('todos').insert(insertData).select().single()
-
   if (data) {
     todosList.push(data)
     input.value = ''
     renderTodos()
-    if (typeof cargarTodosSummary === 'function') await cargarTodosSummary()
+    await cargarTodosSummary()
   }
 }
 
@@ -615,15 +679,12 @@ async function toggleTodoStatus(id) {
   const todo = todosList.find(t => t.id === id)
   if (!todo) return
   const nuevo = todo.status === 'done' ? 'pending' : 'done'
-  const updates = {
-    status: nuevo,
-    completed_at: nuevo === 'done' ? new Date().toISOString() : null
-  }
+  const updates = { status: nuevo, completed_at: nuevo === 'done' ? new Date().toISOString() : null }
   await db.from('todos').update(updates).eq('id', id)
   todo.status = nuevo
   todo.completed_at = updates.completed_at
   renderTodos()
-  if (typeof cargarTodosSummary === 'function') await cargarTodosSummary()
+  await cargarTodosSummary()
 }
 
 async function actualizarTextoTodo(id, texto) {
@@ -639,12 +700,11 @@ async function eliminarTodo(id) {
 
   await db.from('todos_trash').insert({
     todo_id: id,
-    note_id: todo.note_id || notaActual?.id || null,
+    note_id: null,
     text_enc: todo.text_enc,
     status: todo.status,
     kanban_column_id: todo.kanban_column_id,
     sort_order: todo.sort_order,
-    due_date: todo.due_date,
     started_at: todo.started_at,
     completed_at: todo.completed_at,
     deleted_by: sesionActual.user.id
@@ -655,7 +715,7 @@ async function eliminarTodo(id) {
   _expandedCard = null
   _expandedTodo = null
   renderTodos()
-  if (typeof cargarTodosSummary === 'function') await cargarTodosSummary()
+  await cargarTodosSummary()
 }
 
 async function agregarTodoEnColumna(colId) {
@@ -663,48 +723,58 @@ async function agregarTodoEnColumna(colId) {
   if (!texto) return
 
   const colItems = todosList.filter(t => t.kanban_column_id === colId)
-  const noteId = notaActual?.id || null
-
-  const insertData = {
+  const { data } = await db.from('todos').insert({
     text_enc: cifrar(texto),
-    status: 'pending',
+    status: 'in_progress',
     kanban_column_id: colId,
     sort_order: colItems.length,
     started_at: new Date().toISOString(),
     created_by: sesionActual.user.id
-  }
-  if (noteId) insertData.note_id = noteId
+  }).select().single()
 
-  const { data } = await db.from('todos').insert(insertData).select().single()
   if (data) {
     todosList.push(data)
     renderTodos()
-    if (typeof cargarTodosSummary === 'function') await cargarTodosSummary()
+    await cargarTodosSummary()
   }
 }
 
 async function agregarColumna() {
-  if (kanbanColumns.length >= 6) return alert('Maximum 6 columns allowed.')
+  // Max: source(1) + user cols + closed(1) = 6 max, so user cols max = 4 (incl In Progress, Negotiating)
+  const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
+  if (userCols.length >= 4) return alert('Maximum columns reached (6 total including To-Do\'s and Closed).')
+
   const titulo = prompt('Column name:')
   if (!titulo) return
 
+  if (titulo === KANBAN_CLOSED_COL || titulo === KANBAN_SOURCE_COL || titulo === 'To Do') {
+    return alert(`"${titulo}" is a reserved column name.`)
+  }
+
   const existe = kanbanColumns.some(c => c.title.toLowerCase() === titulo.toLowerCase())
-  if (existe) {
-    alert(`A column named "${titulo}" already exists. Please use a different name.`)
-    return
-  }
+  if (existe) return alert(`A column named "${titulo}" already exists.`)
 
-  const noteId = notaActual?.id || null
-  const insertData = {
+  // Insert before Closed
+  const closedCol = kanbanColumns.find(c => c.title === KANBAN_CLOSED_COL)
+  const newOrder = closedCol ? closedCol.sort_order : kanbanColumns.length
+
+  const { data } = await db.from('kanban_columns').insert({
     title: titulo,
-    sort_order: kanbanColumns.length,
+    sort_order: newOrder,
     created_by: sesionActual.user.id
-  }
-  if (noteId) insertData.note_id = noteId
+  }).select().single()
 
-  const { data } = await db.from('kanban_columns').insert(insertData).select().single()
   if (data) {
-    kanbanColumns.push(data)
+    // Update Closed sort_order
+    if (closedCol) {
+      closedCol.sort_order = newOrder + 1
+      await db.from('kanban_columns').update({ sort_order: closedCol.sort_order }).eq('id', closedCol.id)
+    }
+
+    const insertIdx = kanbanColumns.findIndex(c => c.title === KANBAN_CLOSED_COL)
+    if (insertIdx >= 0) kanbanColumns.splice(insertIdx, 0, data)
+    else kanbanColumns.push(data)
+
     renderTodos()
   }
 }
@@ -713,20 +783,20 @@ async function renombrarColumna(id, el) {
   const trimmed = el.textContent.trim()
   if (!trimmed) { el.textContent = el.dataset.original || ''; return }
 
+  if (trimmed === KANBAN_CLOSED_COL || trimmed === KANBAN_SOURCE_COL) {
+    el.textContent = el.dataset.original || trimmed
+    return alert(`"${trimmed}" is a reserved name.`)
+  }
+
   const existe = kanbanColumns.some(c => c.id !== id && c.title.toLowerCase() === trimmed.toLowerCase())
   if (existe) {
     el.classList.add('error')
     el.textContent = el.dataset.original || trimmed
     setTimeout(() => el.classList.remove('error'), 1500)
-
     const colDiv = el.closest('.kanban-col')
     if (colDiv) {
       let warn = colDiv.querySelector('.col-name-warning')
-      if (!warn) {
-        warn = document.createElement('div')
-        warn.className = 'col-name-warning'
-        colDiv.insertBefore(warn, colDiv.children[1])
-      }
+      if (!warn) { warn = document.createElement('div'); warn.className = 'col-name-warning'; colDiv.insertBefore(warn, colDiv.children[1]) }
       warn.textContent = `"${trimmed}" already exists.`
       warn.classList.add('show')
       setTimeout(() => warn.classList.remove('show'), 3000)
@@ -740,17 +810,20 @@ async function renombrarColumna(id, el) {
 }
 
 async function eliminarColumna(id) {
-  if (kanbanColumns.length <= 1) return alert('You need at least one column.')
-  if (!confirm('Delete this column? Tasks will move to the first column.')) return
+  const col = kanbanColumns.find(c => c.id === id)
+  if (!col) return
+  if (col.title === KANBAN_CLOSED_COL) return alert('The Closed column cannot be deleted.')
 
-  const primeraCol = kanbanColumns.find(c => c.id !== id)?.id
-  if (!primeraCol) return
+  if (!confirm(`Delete column "${col.title}"? All tasks inside will be permanently deleted.`)) return
 
-  await db.from('todos').update({ kanban_column_id: primeraCol }).eq('kanban_column_id', id)
+  // Delete tasks in this column
+  await db.from('todos').delete().eq('kanban_column_id', id)
+  todosList = todosList.filter(t => t.kanban_column_id !== id)
+
   await db.from('kanban_columns').delete().eq('id', id)
   kanbanColumns = kanbanColumns.filter(c => c.id !== id)
-  todosList.forEach(t => { if (t.kanban_column_id === id) t.kanban_column_id = primeraCol })
   renderTodos()
+  await cargarTodosSummary()
 }
 
 async function eliminarDeReporte(id) {
@@ -761,10 +834,7 @@ async function eliminarDeReporte(id) {
 // ==================== VERSIONES ====================
 
 async function verVersionesTodos() {
-  let query = db.from('todos_versions').select('*').order('saved_at', { ascending: false })
-  if (notaActual?.id) query = query.eq('note_id', notaActual.id)
-
-  const { data } = await query
+  const { data } = await db.from('todos_versions').select('*').order('saved_at', { ascending: false })
   if (!data?.length) return alert('No saved versions.')
 
   const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
@@ -775,10 +845,10 @@ async function verVersionesTodos() {
   if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
   if (!confirm('Restore this version?')) return
 
-  if (notaActual?.id) await db.from('todos').delete().eq('note_id', notaActual.id)
+  await db.from('todos').delete().is('note_id', null)
 
   const restores = data[idx].snapshot.map(t => ({
-    note_id: notaActual?.id || null,
+    note_id: null,
     text_enc: cifrar(t.text),
     status: t.status,
     kanban_column_id: t.kanban_column_id,
@@ -789,8 +859,7 @@ async function verVersionesTodos() {
   }))
 
   await db.from('todos').insert(restores)
-  if (notaActual) await cargarTodos()
-  else await cargarTodosGlobal()
+  await cargarTodosGlobal()
   renderTodos()
   alert('Version restored.')
 }
@@ -804,4 +873,11 @@ function setTodosMode(mode) {
   if (tabList) tabList.classList.toggle('active', mode === 'list')
   if (tabKanban) tabKanban.classList.toggle('active', mode === 'kanban')
   renderTodos()
+}
+
+// ==================== SIGN OUT HOOK ====================
+
+// Call this before signing out to archive closed cards to log
+async function procesarTarjetasCerradasAlSalir() {
+  await archivarTarjetasCerradas()
 }

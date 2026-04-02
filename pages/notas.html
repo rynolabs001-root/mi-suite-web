@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Notes — Mi Suite Web</title>
+  <title>Notes — My Suite</title>
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/notas.css">
 </head>
 <body>
 
 <nav>
-  <strong>Mi Suite Web</strong>
+  <strong>My Suite</strong>
   <div class="nav-right">
     <a href="../index.html">Home</a>
     <a href="calendario.html">Calendar</a>
@@ -32,12 +32,10 @@
 
     <!-- NOTEBOOKS -->
     <div class="libretas-wrap">
-      <div class="sidebar-section">
-        <div class="sidebar-section-left">
-          <span class="sidebar-section-icon">📚</span>
-          <span class="sidebar-section-title">Notebooks</span>
-          <span class="sidebar-section-badge" id="libretas-count">0</span>
-        </div>
+      <div style="display:flex;align-items:center;padding:6px 12px 3px;gap:6px;flex-shrink:0;">
+        <span style="font-size:14px;">📚</span>
+        <span style="font-size:11px;font-weight:600;color:var(--text2);flex:1;">Notebooks</span>
+        <span class="sidebar-section-badge blue" id="libretas-count">0</span>
         <button class="sidebar-section-add" onclick="nuevaLibreta()" title="New notebook">+</button>
       </div>
       <ul class="libretas-list" id="libretas-list">
@@ -49,18 +47,38 @@
 
     <!-- TO-DO'S -->
     <div class="todos-summary-wrap">
-      <div class="sidebar-section">
-        <div class="sidebar-section-left" style="cursor:pointer;" onclick="abrirTodosGlobalModo('list')">
-          <span class="sidebar-section-icon">✅</span>
-          <span class="sidebar-section-title">To-Do's</span>
-          <span class="sidebar-section-badge warn" id="todos-total-badge">0</span>
+
+      <!-- To-Do's section -->
+      <div class="sidebar-section" onclick="abrirTodosGlobalModo('list')">
+        <span class="sidebar-section-icon">✅</span>
+        <span class="sidebar-section-title">To-Do's</span>
+        <span class="sidebar-section-badge warn" id="todos-total-badge">0</span>
+      </div>
+      <div class="summary-card" id="todos-list-summary">
+        <div class="summary-row" onclick="abrirTodosGlobalModo('list')">
+          <div class="summary-dot" style="background:#ff9f0a;"></div>
+          <span class="summary-name">Pending</span>
+          <span class="summary-count" id="todos-pending-count">0</span>
+        </div>
+        <div class="summary-row" onclick="abrirTodosGlobalModo('list')">
+          <div class="summary-dot" style="background:#34c759;"></div>
+          <span class="summary-name">Done</span>
+          <span class="summary-count" id="todos-done-count">0</span>
         </div>
       </div>
-      <div class="todos-summary-card">
-        <div class="todos-cols-list" id="todos-cols-list">
-          <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
-        </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Kanban section -->
+      <div class="sidebar-section" onclick="abrirTodosGlobalModo('kanban')">
+        <span class="sidebar-section-icon">📋</span>
+        <span class="sidebar-section-title">Kanban</span>
+        <span class="sidebar-section-badge blue" id="kanban-total-badge">0</span>
       </div>
+      <div class="summary-card" id="kanban-cols-summary">
+        <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
+      </div>
+
     </div>
 
     <div class="sidebar-divider"></div>
@@ -95,14 +113,12 @@
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
-          <option value="title_enc">Title</option>
+          <option value="sort_order">Custom order</option>
         </select>
       </div>
       <div class="notas-panel-subactions">
         <button class="btn btn-primary btn-small" onclick="nuevaNota()">+ Note</button>
-        <button class="panel-attach-btn" onclick="abrirAttachmentsLibreta()">
-          📎 Attachments
-        </button>
+        <button class="panel-attach-btn" onclick="abrirAttachmentsLibreta()">📎 Attachments</button>
       </div>
     </div>
     <ul class="notas-list" id="notas-list">
