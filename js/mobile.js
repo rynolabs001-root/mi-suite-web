@@ -45,14 +45,17 @@ function ocultarTodo() {
 function mostrarPanel(id) {
   const el = document.getElementById(id)
   if (!el) return
+  const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
   el.style.display = 'flex'
   el.style.width = '100%'
-  el.style.height = 'calc(var(--vh, 1vh) * 100 - 52px)'
+  el.style.maxWidth = '100vw'
+  el.style.height = altura
   el.style.flex = 'none'
   el.style.borderRight = 'none'
   el.style.borderLeft = 'none'
   el.style.borderBottom = 'none'
   el.style.overflowX = 'hidden'
+  el.style.boxSizing = 'border-box'
 }
 
 function aplicarVistaMobile(vista) {
@@ -79,9 +82,11 @@ function aplicarVistaMobile(vista) {
     case 'todos': {
       const tp = document.getElementById('todos-panel')
       if (tp) {
+        const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
         tp.style.display = 'flex'
         tp.style.width = '100%'
-        tp.style.height = 'calc(var(--vh, 1vh) * 100 - 52px)'
+        tp.style.maxWidth = '100vw'
+        tp.style.height = altura
         tp.style.flex = 'none'
         tp.style.borderLeft = 'none'
         tp.style.borderRight = 'none'
@@ -89,6 +94,7 @@ function aplicarVistaMobile(vista) {
         tp.style.position = 'relative'
         tp.style.zIndex = '10'
         tp.style.overflowX = 'hidden'
+        tp.style.boxSizing = 'border-box'
       }
       // Hide add bar — use navbar button
       const addBar = document.getElementById('todo-add-bar')
@@ -132,8 +138,9 @@ function actualizarNavbarMobile(vista) {
     case 'inicio':
       nav.innerHTML = `
         <strong style="font-size:15px;font-weight:700;letter-spacing:-0.3px;">My Suite</strong>
-        <div class="nav-right" style="gap:10px;">
-          <a href="#" onclick="cerrarSesion()" style="font-size:13px;">Sign out</a>
+        <div class="nav-right" style="gap:8px;display:flex;align-items:center;">
+          <a href="#" onclick="cerrarSesion()"
+            style="font-size:13px;color:var(--accent);text-decoration:none;">Sign out</a>
           <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()"
             style="width:32px;height:18px;flex-shrink:0;">
             <div class="theme-toggle-thumb"></div>
@@ -243,25 +250,22 @@ function agregarTodoMobile() {
 // ==================== PATCH SIDEBAR ====================
 
 function patchTodosSidebar() {
-  // To-Do's section click
-  document.querySelectorAll('.sidebar-section').forEach(section => {
-    const title = section.querySelector('.sidebar-section-title')
-    if (title?.textContent.trim() === "To-Do's") {
-      section.onclick = () => esMobile() ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
-    }
-    if (title?.textContent.trim() === 'Kanban') {
-      section.onclick = () => esMobile() ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
-    }
-  })
+  // Zone clicks are handled by onclick in HTML
+  // Just ensure mobile routing is correct
+  const zoneTodos = document.getElementById('zone-todos')
+  const zoneKanban = document.getElementById('zone-kanban')
 
-  // Summary rows
-  document.querySelectorAll('#todos-list-summary .summary-row').forEach(row => {
-    row.onclick = () => esMobile() ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
-  })
+  if (zoneTodos) {
+    zoneTodos.onclick = () => esMobile()
+      ? mobileNavSelect('todos')
+      : abrirTodosGlobalModo('list')
+  }
 
-  document.querySelectorAll('#kanban-cols-summary .summary-row').forEach(row => {
-    row.onclick = () => esMobile() ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
-  })
+  if (zoneKanban) {
+    zoneKanban.onclick = () => esMobile()
+      ? mobileNavSelect('todos')
+      : abrirTodosGlobalModo('kanban')
+  }
 }
 
 function patchPapeleraSidebar() {
@@ -316,28 +320,36 @@ function restaurarDesktop() {
   const todosPanel = document.getElementById('todos-panel')
   const addBar = document.getElementById('todo-add-bar')
 
-  if (sidebar) sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);overflow-x:hidden;'
-  if (notasPanel) notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);overflow-x:hidden;'
-  if (editorPanel) editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;'
+  if (sidebar) sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);overflow-x:hidden;max-width:none;'
+  if (notasPanel) notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);overflow-x:hidden;max-width:none;'
+  if (editorPanel) editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;max-width:none;'
   if (todosPanel) todosPanel.style.cssText = 'display:none;'
   if (addBar) addBar.style.display = 'flex'
 
   aplicarTheme()
 }
 
-// ==================== CSS ====================
+// ==================== CSS MOBILE ====================
 
 const mobileNavStyle = document.createElement('style')
 mobileNavStyle.textContent = `
   .mobile-nav { display: none !important; }
 
   @media (max-width: 768px) {
+    html, body {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+
     nav {
       padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      max-width: 100vw;
+      overflow: hidden;
+      box-sizing: border-box;
     }
 
     nav strong {
@@ -346,6 +358,7 @@ mobileNavStyle.textContent = `
       letter-spacing: -0.3px;
       text-align: left;
       flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .notas-layout {
@@ -353,6 +366,8 @@ mobileNavStyle.textContent = `
       height: auto;
       overflow: visible;
       position: relative;
+      max-width: 100vw;
+      overflow-x: hidden;
     }
 
     .editor-toolbar {
@@ -360,6 +375,7 @@ mobileNavStyle.textContent = `
       flex-wrap: nowrap;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
+      max-width: 100%;
     }
 
     .editor-toolbar::-webkit-scrollbar { display: none; }
@@ -369,20 +385,24 @@ mobileNavStyle.textContent = `
     .editor-footer-actions { display: none; }
 
     .kanban-col { min-width: 140px; }
-    .todos-body { -webkit-overflow-scrolling: touch; overflow-x: hidden; }
-    .todos-panel { position: relative; z-index: 10; overflow-x: hidden; }
+    .todos-body { -webkit-overflow-scrolling: touch; overflow-x: hidden; max-width: 100vw; }
+    .todos-panel { overflow-x: hidden; max-width: 100vw; }
     .sidebar-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-    .libretas-wrap { flex: none; max-height: 40vh; }
-    .todos-summary-wrap { flex: none; overflow-x: hidden; }
+    .libretas-wrap { flex: none; max-height: 40vh; overflow: hidden; }
+    .todos-summary-wrap { flex: none; overflow-x: hidden; max-width: 100vw; }
 
-    .nota-item { overflow: hidden; }
-    .nota-item-header { overflow: hidden; }
+    .nota-item { overflow: hidden; max-width: 100%; box-sizing: border-box; }
+    .nota-item-header { overflow: hidden; max-width: 100%; }
     .nota-item-titulo { min-width: 0; }
+
+    .summary-card { max-width: 100%; overflow: hidden; box-sizing: border-box; }
+    .sidebar-zone { max-width: 100%; overflow: hidden; box-sizing: border-box; }
 
     .attachments-screen {
       position: fixed;
       top: 52px;
       z-index: 100;
+      max-width: 100vw;
     }
 
     .color-picker-popup {
@@ -392,8 +412,15 @@ mobileNavStyle.textContent = `
       transform: translateX(-50%) !important;
       top: auto !important;
       right: auto !important;
-      width: calc(100% - 32px) !important;
+      width: calc(100vw - 32px) !important;
       max-width: 340px !important;
+    }
+
+    /* Dark mode toggle — solo en sidebar footer en mobile inicio */
+    .sidebar-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
   }
 

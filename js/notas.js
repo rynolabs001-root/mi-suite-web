@@ -5,13 +5,13 @@ let historialSesion = []
 
 const NOTE_COLORS = [
   { id: 'none',   bg: null,      label: 'Default' },
-  { id: 'yellow', bg: '#fde68a', label: 'Yellow'  },
-  { id: 'blue',   bg: '#bfdbfe', label: 'Blue'    },
-  { id: 'green',  bg: '#bbf7d0', label: 'Green'   },
-  { id: 'pink',   bg: '#fbcfe8', label: 'Pink'    },
-  { id: 'purple', bg: '#e9d5ff', label: 'Purple'  },
-  { id: 'orange', bg: '#fed7aa', label: 'Orange'  },
-  { id: 'gray',   bg: '#e2e8f0', label: 'Gray'    },
+  { id: 'yellow', bg: '#fcd34d', label: 'Yellow'  },
+  { id: 'blue',   bg: '#60a5fa', label: 'Blue'    },
+  { id: 'green',  bg: '#4ade80', label: 'Green'   },
+  { id: 'pink',   bg: '#f472b6', label: 'Pink'    },
+  { id: 'purple', bg: '#c084fc', label: 'Purple'  },
+  { id: 'orange', bg: '#fb923c', label: 'Orange'  },
+  { id: 'gray',   bg: '#cbd5e1', label: 'Gray'    },
 ]
 
 async function iniciarNotas(sesion) {
@@ -29,18 +29,18 @@ function iniciarColorPickerEditor() {
   renderColorSwatches('color-swatches-editor', color => aplicarColorNota(color))
 }
 
-function renderColorSwatches(containerId, onSelect) {
+function renderColorSwatches(containerId, onSelect, currentColorId) {
   const container = document.getElementById(containerId)
   if (!container) return
   container.innerHTML = ''
   NOTE_COLORS.forEach(color => {
     const div = document.createElement('div')
-    div.className = 'color-swatch'
+    div.className = 'color-swatch' + (color.id === currentColorId ? ' selected' : '')
     div.title = color.label
     div.dataset.colorId = color.id
     div.style.background = color.bg || '#ffffff'
     if (!color.bg) div.style.border = '1.5px solid var(--border2)'
-    div.onclick = () => onSelect(color)
+    div.onclick = e => { e.stopPropagation(); onSelect(color) }
     container.appendChild(div)
   })
 }
@@ -175,7 +175,7 @@ async function cargarTodosSummary() {
 
   if (!allTodos || !allCols) return
 
-  const pendientes = allTodos.filter(t => t.status !== 'done' && t.status !== 'closed').length
+  const pendientes = allTodos.filter(t => t.status === 'pending').length
   const done = allTodos.filter(t => t.status === 'done').length
   const total = allTodos.length
 
@@ -185,54 +185,49 @@ async function cargarTodosSummary() {
     todoBadge.textContent = `${pendientes} pending`
     todoBadge.className = 'sidebar-section-badge' + (pendientes > 0 ? ' warn' : '')
   }
-  const pendingCount = document.getElementById('todos-pending-count')
-  const doneCount = document.getElementById('todos-done-count')
-  if (pendingCount) pendingCount.textContent = pendientes
-  if (doneCount) doneCount.textContent = done
 
-  // Kanban columns summary — exclude To-Do's source column and Closed
+  const pendingEl = document.getElementById('todos-pending-count')
+  const doneEl = document.getElementById('todos-done-count')
+  if (pendingEl) pendingEl.textContent = pendientes
+  if (doneEl) doneEl.textContent = done
+
+  // Kanban summary — exclude source and closed
   const kanbanSummary = document.getElementById('kanban-cols-summary')
   if (!kanbanSummary) return
   kanbanSummary.innerHTML = ''
 
-  // Count kanban cards (todos in non-source columns)
-  const kanbanTodos = allTodos.filter(t => t.status !== 'done')
-  let kanbanTotal = 0
-
-  const colColors = ['#0071e3', '#af52de', '#ff9f0a', '#ff3b30', '#5ac8fa', '#ff6b35']
-
-  // Get unique kanban columns (exclude the To-Do's source which is first col)
-  const uniqueCols = []
+  const EXCLUDED = ['To Do', "To-Do's", 'Closed']
   const seenTitles = new Set()
-  allCols.forEach(col => {
-    if (col.title === 'To Do' || col.title === "To-Do's") return // skip source
-    if (seenTitles.has(col.title)) return
+  let kanbanTotal = 0
+  const colColors = ['#0071e3', '#af52de', '#ff9f0a', '#ff3b30', '#5ac8fa']
+
+  const kanbanCols = allCols.filter(col => {
+    if (EXCLUDED.includes(col.title)) return false
+    if (seenTitles.has(col.title)) return false
     seenTitles.add(col.title)
-    const count = allTodos.filter(t => t.kanban_column_id === col.id).length
-    kanbanTotal += count
-    uniqueCols.push({ ...col, count })
+    return true
   })
 
-  const kanbanBadge = document.getElementById('kanban-total-badge')
-  if (kanbanBadge) kanbanBadge.textContent = `${kanbanTotal} cards`
+  kanbanCols.forEach((col, i) => {
+    const count = allTodos.filter(t => t.kanban_column_id === col.id).length
+    kanbanTotal += count
 
-  if (!uniqueCols.length) {
-    kanbanSummary.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No columns yet.</div>'
-    return
-  }
-
-  uniqueCols.forEach((col, i) => {
     const row = document.createElement('div')
     row.className = 'summary-row'
     row.innerHTML = `
       <div class="summary-dot" style="background:${colColors[i % colColors.length]};"></div>
       <span class="summary-name">${col.title}</span>
-      <span class="summary-count">${col.count}</span>
+      <span class="summary-count">${count}</span>
     `
-    row.onclick = () => typeof esMobile === 'function' && esMobile()
-      ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
     kanbanSummary.appendChild(row)
   })
+
+  if (!kanbanCols.length) {
+    kanbanSummary.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No columns yet.</div>'
+  }
+
+  const kanbanBadge = document.getElementById('kanban-total-badge')
+  if (kanbanBadge) kanbanBadge.textContent = `${kanbanTotal} cards`
 
   if (typeof patchTodosSidebar === 'function') setTimeout(patchTodosSidebar, 100)
 }
@@ -265,37 +260,6 @@ async function abrirTodosGlobalModo(modo) {
   if (typeof esMobile === 'function' && esMobile()) { mobileNavSelect('todos'); return }
   await abrirTodosGlobal()
   if (typeof setTodosMode === 'function') setTimeout(() => setTodosMode(modo), 150)
-}
-
-async function cargarTodosGlobal() {
-  const { data: cols } = await db.from('kanban_columns').select('*').order('sort_order')
-  const { data: todos } = await db.from('todos').select('*').order('sort_order')
-
-  // Deduplicate
-  const seenIds = new Set()
-  todosList = (todos || []).filter(t => { if (seenIds.has(t.id)) return false; seenIds.add(t.id); return true })
-
-  // Build kanban columns: source + user cols + closed
-  // Source col = virtual (To-Do's list)
-  // Real cols from DB excluding any named "To Do" or "To-Do's"
-  const realCols = (cols || []).filter(c => c.title !== 'To Do' && c.title !== "To-Do's")
-  const seenTitles = new Set()
-  const uniqueCols = realCols.filter(c => { if (seenTitles.has(c.title)) return false; seenTitles.add(c.title); return true })
-
-  // Ensure default cols exist
-  const defaultCols = ['In Progress', 'Negotiating', 'Closed']
-  for (const title of defaultCols) {
-    if (!uniqueCols.find(c => c.title === title)) {
-      const { data } = await db.from('kanban_columns').insert({
-        title,
-        sort_order: uniqueCols.length,
-        created_by: sesionActual.user.id
-      }).select().single()
-      if (data) uniqueCols.push(data)
-    }
-  }
-
-  kanbanColumns = uniqueCols
 }
 
 // ==================== PAPELERA ====================
@@ -352,7 +316,7 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
             onclick="event.stopPropagation(); togglePinNota('${nota.id}')"
             title="${nota.is_pinned ? 'Unpin' : 'Pin note'}">📌</button>
           <button class="nota-color-btn ${bgColor ? 'colored' : ''}"
-            onclick="event.stopPropagation(); toggleColorInline('${nota.id}', this)"
+            onclick="event.stopPropagation(); toggleColorInline(event, '${nota.id}')"
             title="Note color">🎨</button>
         </div>
       </div>
@@ -363,43 +327,43 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
       <div class="nota-item-fecha">${formatearFecha(nota.updated_at)}</div>
     `
 
-    // Build inline color swatches
-    const inlineContainer = li.querySelector(`#color-inline-${nota.id}`)
-    if (inlineContainer) {
+    // Build inline swatches
+    const inlineEl = li.querySelector(`#color-inline-${nota.id}`)
+    if (inlineEl) {
       NOTE_COLORS.forEach(color => {
         const swatch = document.createElement('div')
         swatch.className = 'color-swatch' + (nota.color_id === color.id ? ' selected' : '')
+        swatch.dataset.colorId = color.id
         swatch.style.background = color.bg || '#ffffff'
         if (!color.bg) swatch.style.border = '1.5px solid var(--border2)'
-        swatch.onclick = (e) => {
+        swatch.onclick = async e => {
           e.stopPropagation()
-          aplicarColorNotaById(nota.id, color)
+          await aplicarColorNotaById(nota.id, color)
         }
-        inlineContainer.appendChild(swatch)
+        inlineEl.appendChild(swatch)
       })
     }
 
-    // Drag and drop for reordering
     iniciarDragNotaItem(li, nota)
-
     li.onclick = () => abrirNota(nota, li)
     lista.appendChild(li)
   })
 }
 
-function toggleColorInline(notaId, btnEl) {
+function toggleColorInline(e, notaId) {
+  e.stopPropagation()
   const inline = document.getElementById(`color-inline-${notaId}`)
   if (!inline) return
 
-  // Close all others first
-  document.querySelectorAll('.nota-color-inline.open').forEach(el => {
-    if (el.id !== `color-inline-${notaId}`) el.classList.remove('open')
-  })
+  const isOpen = inline.classList.contains('open')
 
-  inline.classList.toggle('open')
+  // Close all
+  document.querySelectorAll('.nota-color-inline.open').forEach(el => el.classList.remove('open'))
+
+  if (!isOpen) inline.classList.add('open')
 }
 
-// ---- Drag & drop for note reordering ----
+// ---- Drag & drop note reordering ----
 let dragNotaId = null
 let dragNotaEl = null
 
@@ -409,8 +373,8 @@ function iniciarDragNotaItem(el, nota) {
   el.addEventListener('dragstart', e => {
     dragNotaId = nota.id
     dragNotaEl = el
-    setTimeout(() => el.classList.add('dragging'), 0)
     e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => el.classList.add('dragging'), 0)
   })
 
   el.addEventListener('dragend', () => {
@@ -428,20 +392,14 @@ function iniciarDragNotaItem(el, nota) {
     document.querySelectorAll('.nota-item.drag-over').forEach(i => i.classList.remove('drag-over'))
 
     const rect = el.getBoundingClientRect()
-    const mid = rect.top + rect.height / 2
+    const ind = document.createElement('li')
+    ind.className = 'nota-drop-indicator'
 
-    if (e.clientY < mid) {
-      // Insert before
-      const ind = document.createElement('li')
-      ind.className = 'nota-drop-indicator'
+    if (e.clientY < rect.top + rect.height / 2) {
       el.parentNode.insertBefore(ind, el)
     } else {
-      // Insert after
-      const ind = document.createElement('li')
-      ind.className = 'nota-drop-indicator'
       el.parentNode.insertBefore(ind, el.nextSibling)
     }
-
     el.classList.add('drag-over')
   })
 
@@ -452,23 +410,16 @@ function iniciarDragNotaItem(el, nota) {
     document.querySelectorAll('.nota-drop-indicator').forEach(i => i.remove())
     document.querySelectorAll('.nota-item.drag-over').forEach(i => i.classList.remove('drag-over'))
 
-    // Reorder in DOM and save
     const lista = document.getElementById('notas-list')
     const items = [...lista.querySelectorAll('.nota-item')]
-    const fromIdx = items.findIndex(i => i.dataset.id === dragNotaId)
-    const toIdx = items.findIndex(i => i.dataset.id === nota.id)
-
-    if (fromIdx === -1 || toIdx === -1) return
+    const fromEl = items.find(i => i.dataset.id === dragNotaId)
+    if (!fromEl) return
 
     const rect = e.currentTarget.getBoundingClientRect()
     const insertBefore = e.clientY < rect.top + rect.height / 2
 
-    const fromEl = items[fromIdx]
-    if (insertBefore) {
-      lista.insertBefore(fromEl, items[toIdx])
-    } else {
-      lista.insertBefore(fromEl, items[toIdx].nextSibling)
-    }
+    if (insertBefore) lista.insertBefore(fromEl, el)
+    else lista.insertBefore(fromEl, el.nextSibling)
 
     // Save new order
     const newItems = [...lista.querySelectorAll('.nota-item')]
@@ -641,7 +592,8 @@ function deshacer() {
 
 async function verVersiones() {
   if (!notaActual) return
-  const { data } = await db.from('note_versions').select('*').eq('note_id', notaActual.id).order('saved_at', { ascending: false })
+  const { data } = await db.from('note_versions').select('*')
+    .eq('note_id', notaActual.id).order('saved_at', { ascending: false })
   if (!data?.length) return alert('No saved versions for this note.')
   const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
   const sel = prompt(`Versions:\n${lista}\n\nEnter number to restore:`)
@@ -658,7 +610,11 @@ async function verVersiones() {
 
 async function registrarActividad(accion) {
   if (!notaActual) return
-  await db.from('note_activity').insert({ note_id: notaActual.id, user_id: sesionActual.user.id, action: accion })
+  await db.from('note_activity').insert({
+    note_id: notaActual.id,
+    user_id: sesionActual.user.id,
+    action: accion
+  })
 }
 
 // ==================== BUSQUEDA ====================
@@ -682,12 +638,14 @@ function iniciarBusqueda() {
 
 async function buscarGlobal(termino) {
   if (!termino) {
-    document.getElementById('libreta-nombre').textContent = libretaActual ? descifrar(libretaActual.name_enc) : 'Select a notebook'
+    document.getElementById('libreta-nombre').textContent = libretaActual
+      ? descifrar(libretaActual.name_enc) : 'Select a notebook'
     if (libretaActual) cargarNotas(libretaActual.id)
     return
   }
 
-  const { data } = await db.from('notes').select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned, color_id')
+  const { data } = await db.from('notes')
+    .select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned, color_id')
   if (!data) return
 
   const resultados = data.filter(n => {
@@ -700,7 +658,10 @@ async function buscarGlobal(termino) {
   lista.innerHTML = ''
   document.getElementById('libreta-nombre').textContent = `Results: "${termino}" (${resultados.length})`
 
-  if (!resultados.length) { lista.innerHTML = '<li class="nota-empty">No results found.</li>'; return }
+  if (!resultados.length) {
+    lista.innerHTML = '<li class="nota-empty">No results found.</li>'
+    return
+  }
 
   resultados.forEach(nota => {
     const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)

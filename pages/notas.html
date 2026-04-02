@@ -45,38 +45,41 @@
 
     <div class="sidebar-divider"></div>
 
-    <!-- TO-DO'S -->
+    <!-- TO-DO'S — clickable zone -->
     <div class="todos-summary-wrap">
 
-      <!-- To-Do's section -->
-      <div class="sidebar-section" onclick="abrirTodosGlobalModo('list')">
-        <span class="sidebar-section-icon">✅</span>
-        <span class="sidebar-section-title">To-Do's</span>
-        <span class="sidebar-section-badge warn" id="todos-total-badge">0</span>
-      </div>
-      <div class="summary-card" id="todos-list-summary">
-        <div class="summary-row" onclick="abrirTodosGlobalModo('list')">
-          <div class="summary-dot" style="background:#ff9f0a;"></div>
-          <span class="summary-name">Pending</span>
-          <span class="summary-count" id="todos-pending-count">0</span>
+      <div class="sidebar-zone" id="zone-todos" onclick="abrirTodosGlobalModo('list')">
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 12px 3px;">
+          <span style="font-size:14px;">✅</span>
+          <span style="font-size:11px;font-weight:600;color:var(--text2);flex:1;">To-Do's</span>
+          <span class="sidebar-section-badge warn" id="todos-total-badge">0</span>
         </div>
-        <div class="summary-row" onclick="abrirTodosGlobalModo('list')">
-          <div class="summary-dot" style="background:#34c759;"></div>
-          <span class="summary-name">Done</span>
-          <span class="summary-count" id="todos-done-count">0</span>
+        <div class="summary-card" id="todos-list-summary">
+          <div class="summary-row">
+            <div class="summary-dot" style="background:#ff9f0a;"></div>
+            <span class="summary-name">Pending</span>
+            <span class="summary-count" id="todos-pending-count">0</span>
+          </div>
+          <div class="summary-row">
+            <div class="summary-dot" style="background:#34c759;"></div>
+            <span class="summary-name">Done</span>
+            <span class="summary-count" id="todos-done-count">0</span>
+          </div>
         </div>
       </div>
 
       <div class="sidebar-divider"></div>
 
-      <!-- Kanban section -->
-      <div class="sidebar-section" onclick="abrirTodosGlobalModo('kanban')">
-        <span class="sidebar-section-icon">📋</span>
-        <span class="sidebar-section-title">Kanban</span>
-        <span class="sidebar-section-badge blue" id="kanban-total-badge">0</span>
-      </div>
-      <div class="summary-card" id="kanban-cols-summary">
-        <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
+      <!-- KANBAN — clickable zone -->
+      <div class="sidebar-zone" id="zone-kanban" onclick="abrirTodosGlobalModo('kanban')">
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 12px 3px;">
+          <span style="font-size:14px;">📋</span>
+          <span style="font-size:11px;font-weight:600;color:var(--text2);flex:1;">Kanban</span>
+          <span class="sidebar-section-badge blue" id="kanban-total-badge">0</span>
+        </div>
+        <div class="summary-card" id="kanban-cols-summary">
+          <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
+        </div>
       </div>
 
     </div>
@@ -131,7 +134,6 @@
   <!-- ==================== EDITOR ==================== -->
   <section class="editor-panel" id="editor-panel">
 
-    <!-- Attachments overlay -->
     <div class="attachments-screen" id="attachments-screen">
       <div class="attachments-header">
         <span class="attachments-title" id="attachments-title">Attachments</span>
@@ -213,7 +215,8 @@
     </div>
     <div class="todos-body" id="todos-body"></div>
     <div class="todo-add" id="todo-add-bar">
-      <input class="todo-input" id="todo-input" placeholder="Add a task..."
+      <input class="todo-input" id="todo-input"
+        placeholder="Add a task..."
         onkeydown="if(event.key==='Enter') agregarTodo()">
       <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
