@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notas — Mi Suite Web</title>
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/notas.css">
+</head>
+<body>
+
+  <nav>
+    <strong>Mi Suite Web</strong>
+    <div>
+      <a href="../index.html">Inicio</a>
+      <a href="calendario.html">Calendario</a>
+      <a href="peliculas.html">Películas</a>
+      <a href="#" onclick="cerrarSesion()">Salir</a>
+    </div>
+  </nav>
+
+  <div class="notas-layout">
+
+    <!-- Sidebar izquierdo: libretas -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Libretas</span>
+        <button class="btn-icon" onclick="nuevaLibreta()" title="Nueva libreta">+</button>
+      </div>
+      <ul class="libretas-list" id="libretas-list">
+        <li class="libreta-item loading">Cargando...</li>
+      </ul>
+    </aside>
+
+    <!-- Panel central: lista de notas -->
+    <section class="notas-panel" id="notas-panel">
+      <div class="notas-panel-header">
+        <span class="notas-panel-title" id="libreta-nombre">Selecciona una libreta</span>
+        <div class="notas-panel-actions">
+          <input type="text" id="buscar-notas" placeholder="Buscar notas..." class="input-buscar">
+          <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
+            <option value="updated_at">Última modificación</option>
+            <option value="created_at">Fecha de creación</option>
+            <option value="title">Título</option>
+          </select>
+          <button class="btn btn-primary" onclick="nuevaNota()">+ Nota</button>
+        </div>
+      </div>
+      <ul class="notas-list" id="notas-list">
+        <li class="nota-empty">Selecciona una libreta para ver sus notas.</li>
+      </ul>
+    </section>
+
+    <!-- Panel derecho: editor de nota -->
+    <section class="editor-panel" id="editor-panel">
+      <div class="editor-placeholder" id="editor-placeholder">
+        <p>Selecciona o crea una nota para comenzar.</p>
+      </div>
+      <div class="editor-contenido" id="editor-contenido" style="display:none;">
+
+        <div class="editor-toolbar">
+          <button onclick="formatear('bold')" title="Negrita (Ctrl+B)"><b>B</b></button>
+          <button onclick="formatear('italic')" title="Cursiva (Ctrl+I)"><i>I</i></button>
+          <button onclick="formatear('underline')" title="Subrayado (Ctrl+U)"><u>U</u></button>
+          <button onclick="highlight('yellow')" class="hl-yellow" title="Resaltar amarillo">A</button>
+          <button onclick="highlight('pink')" class="hl-pink" title="Resaltar fucsia">A</button>
+          <span class="toolbar-sep">|</span>
+          <button onclick="formatear('insertUnorderedList')" title="Lista">&#8226;</button>
+          <button onclick="formatearBloque('H2')" title="Encabezado">H</button>
+          <span class="toolbar-sep">|</span>
+          <button onclick="deshacer()" title="Deshacer (Ctrl+Z)">↩</button>
+          <button onclick="guardarVersion()" title="Guardar versión">&#128190;</button>
+          <button onclick="verVersiones()" title="Historial de versiones">&#128336;</button>
+          <span class="toolbar-sep">|</span>
+          <button onclick="togglePin()" id="btn-pin" title="Fijar nota">&#128204;</button>
+          <button onclick="abrirColor()" title="Color de nota">&#127774;</button>
+          <button onclick="eliminarNota()" title="Eliminar nota" class="btn-danger-icon">&#128465;</button>
+        </div>
+
+        <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Título de la nota">
+
+        <div id="nota-contenido" class="editor-area" contenteditable="true"
+          onkeydown="atajosTeclado(event)"
+          oninput="onContenidoChange()">
+        </div>
+
+        <div class="editor-footer">
+          <span id="nota-fecha" class="nota-fecha"></span>
+          <div class="editor-footer-actions">
+            <button class="btn btn-small" onclick="abrirAdjuntos()">Adjuntos</button>
+            <button class="btn btn-small" onclick="abrirTodos()">To-Do's</button>
+            <button class="btn btn-small" onclick="abrirRecordatorio()">Recordatorio</button>
+            <button class="btn btn-primary btn-small" onclick="guardarNota()">Guardar</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/notas.js"></script>
+  <script>
+    (async () => {
+      const sesion = await verificarSesion()
+      if (!sesion) window.location.href = 'login.html'
+      else iniciarNotas(sesion)
+    })()
+  </script>
+
+</body>
+</html>
