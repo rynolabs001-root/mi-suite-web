@@ -97,35 +97,32 @@ async function aplicarColorNotaById(notaId, color) {
 
   if (error) return console.error(error)
 
-  // Update in-memory nota if it's the active one
+  // Update active nota if needed
   if (notaActual?.id === notaId) {
     notaActual.color_id = color.id
     aplicarColorEditor(color.bg)
   }
 
-  cerrarTodosLosColorPickers()
-
-  // Update the nota item in the list immediately without full reload
+  // Update the list item immediately — no reload needed
   const li = document.querySelector(`.nota-item[data-id="${notaId}"]`)
   if (li) {
-    if (color.bg) {
-      li.style.background = color.bg
-    } else {
-      li.style.background = ''
-    }
-    // Update color btn state
+    li.style.background = color.bg || ''
+
+    // Update color button state
     const colorBtn = li.querySelector('.nota-color-btn')
     if (colorBtn) colorBtn.classList.toggle('colored', !!color.bg)
+
     // Update inline swatch selection
     li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
       s.classList.toggle('selected', s.dataset.colorId === color.id)
     })
-    // Close inline picker
+
+    // Close the inline picker
     const inline = li.querySelector('.nota-color-inline')
     if (inline) inline.classList.remove('open')
   }
 
-  // Full reload to persist
+  // Full reload to keep list in sync
   if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
@@ -205,9 +202,7 @@ async function cargarTodosSummary() {
 
   const pendientes = allTodos.filter(t => t.status === 'pending').length
   const done = allTodos.filter(t => t.status === 'done').length
-  const total = allTodos.length
 
-  // To-Do badges
   const todoBadge = document.getElementById('todos-total-badge')
   if (todoBadge) {
     todoBadge.textContent = `${pendientes} pending`
@@ -236,22 +231,21 @@ async function cargarTodosSummary() {
     return true
   })
 
-  kanbanCols.forEach((col, i) => {
-    const count = allTodos.filter(t => t.kanban_column_id === col.id).length
-    kanbanTotal += count
-
-    const row = document.createElement('div')
-    row.className = 'summary-row'
-    row.innerHTML = `
-      <div class="summary-dot" style="background:${colColors[i % colColors.length]};"></div>
-      <span class="summary-name">${col.title}</span>
-      <span class="summary-count">${count}</span>
-    `
-    kanbanSummary.appendChild(row)
-  })
-
   if (!kanbanCols.length) {
     kanbanSummary.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No columns yet.</div>'
+  } else {
+    kanbanCols.forEach((col, i) => {
+      const count = allTodos.filter(t => t.kanban_column_id === col.id && t.status === 'in_progress').length
+      kanbanTotal += count
+      const row = document.createElement('div')
+      row.className = 'summary-row'
+      row.innerHTML = `
+        <div class="summary-dot" style="background:${colColors[i % colColors.length]};"></div>
+        <span class="summary-name">${col.title}</span>
+        <span class="summary-count">${count}</span>
+      `
+      kanbanSummary.appendChild(row)
+    })
   }
 
   const kanbanBadge = document.getElementById('kanban-total-badge')
@@ -382,12 +376,8 @@ function toggleColorInline(e, notaId) {
   e.stopPropagation()
   const inline = document.getElementById(`color-inline-${notaId}`)
   if (!inline) return
-
   const isOpen = inline.classList.contains('open')
-
-  // Close all
   document.querySelectorAll('.nota-color-inline.open').forEach(el => el.classList.remove('open'))
-
   if (!isOpen) inline.classList.add('open')
 }
 
@@ -418,38 +408,26 @@ function iniciarDragNotaItem(el, nota) {
     if (dragNotaEl === el) return
     document.querySelectorAll('.nota-drop-indicator').forEach(i => i.remove())
     document.querySelectorAll('.nota-item.drag-over').forEach(i => i.classList.remove('drag-over'))
-
     const rect = el.getBoundingClientRect()
     const ind = document.createElement('li')
     ind.className = 'nota-drop-indicator'
-
-    if (e.clientY < rect.top + rect.height / 2) {
-      el.parentNode.insertBefore(ind, el)
-    } else {
-      el.parentNode.insertBefore(ind, el.nextSibling)
-    }
+    if (e.clientY < rect.top + rect.height / 2) el.parentNode.insertBefore(ind, el)
+    else el.parentNode.insertBefore(ind, el.nextSibling)
     el.classList.add('drag-over')
   })
 
   el.addEventListener('drop', async e => {
     e.preventDefault()
     if (!dragNotaId || dragNotaId === nota.id) return
-
     document.querySelectorAll('.nota-drop-indicator').forEach(i => i.remove())
     document.querySelectorAll('.nota-item.drag-over').forEach(i => i.classList.remove('drag-over'))
-
     const lista = document.getElementById('notas-list')
     const items = [...lista.querySelectorAll('.nota-item')]
     const fromEl = items.find(i => i.dataset.id === dragNotaId)
     if (!fromEl) return
-
     const rect = e.currentTarget.getBoundingClientRect()
-    const insertBefore = e.clientY < rect.top + rect.height / 2
-
-    if (insertBefore) lista.insertBefore(fromEl, el)
+    if (e.clientY < rect.top + rect.height / 2) lista.insertBefore(fromEl, el)
     else lista.insertBefore(fromEl, el.nextSibling)
-
-    // Save new order
     const newItems = [...lista.querySelectorAll('.nota-item')]
     await Promise.all(newItems.map((item, i) =>
       db.from('notes').update({ sort_order: i }).eq('id', item.dataset.id)
@@ -485,23 +463,18 @@ async function nuevaNota() {
 function abrirNota(nota, el) {
   document.querySelectorAll('.nota-item').forEach(i => i.classList.remove('active'))
   if (el) el.classList.add('active')
-
   notaActual = nota
   historialSesion = []
   window._hayaCambios = false
-
   document.getElementById('editor-placeholder').style.display = 'none'
   document.getElementById('editor-contenido').style.display = 'flex'
   document.getElementById('nota-titulo').value = descifrar(nota.title_enc) || ''
   document.getElementById('nota-contenido').innerHTML = descifrar(nota.content_enc) || ''
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(nota.updated_at)
-
   const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
   aplicarColorEditor(colorObj?.bg || null)
   historialSesion.push(document.getElementById('nota-contenido').innerHTML)
-
   if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('editor')
-
   if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
   window._autoguardadoInterval = setInterval(async () => {
     if (!notaActual || !window._hayaCambios) return
@@ -659,7 +632,6 @@ function iniciarBusqueda() {
       })
     })
   }
-
   const sidebarSearch = document.getElementById('sidebar-search')
   if (sidebarSearch) sidebarSearch.addEventListener('input', () => buscarGlobal(sidebarSearch.value))
 }

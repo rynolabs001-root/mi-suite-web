@@ -52,8 +52,9 @@ function cerrarTodos() {
 // ==================== CARGAR ====================
 
 async function cargarTodosGlobal() {
-  // Archive closed todos from previous sessions before loading
-  await archivarClosedAlCargar()
+  // On load: todos with status=closed from previous sessions
+  // are kept in DB but filtered out of the kanban board
+  // They appear only in the activity log
 
   const { data: todos } = await db
     .from('todos')
@@ -65,6 +66,14 @@ async function cargarTodosGlobal() {
     if (seenIds.has(t.id)) return false
     seenIds.add(t.id)
     return true
+  })
+
+  // Mark todos that were closed before this session
+  // (status=closed but no _closedThisSession flag = previous session)
+  todosList.forEach(t => {
+    if (t.status === 'closed' && !t._closedThisSession) {
+      t._archivedPrevSession = true
+    }
   })
 
   const { data: cols } = await db
@@ -81,6 +90,7 @@ async function cargarTodosGlobal() {
     return true
   })
 
+  // Ensure default columns exist
   for (const title of KANBAN_DEFAULT_COLS) {
     if (!uniqueCols.find(c => c.title === title)) {
       const { data } = await db.from('kanban_columns').insert({
@@ -92,21 +102,12 @@ async function cargarTodosGlobal() {
     }
   }
 
+  // Closed always last
   const closedCol = uniqueCols.find(c => c.title === KANBAN_CLOSED_COL)
   const otherCols = uniqueCols.filter(c => c.title !== KANBAN_CLOSED_COL)
   kanbanColumns = closedCol ? [...otherCols, closedCol] : otherCols
 
   await cargarTodosSummary()
-}
-
-// Archive closed todos to log when switching views or loading
-async function archivarClosedAlCargar() {
-  // Find todos with status=closed that were closed in a previous session
-  // We detect "previous session" by checking if they were closed before today's session start
-  // Simple approach: any todo with status=closed gets moved to log (removed from active list)
-  // They remain in DB with status=closed so they appear in the log
-  // We just don't show them in the kanban board
-  // No DB changes needed — just filter them out in renderKanban
 }
 
 // ==================== RENDER ====================
@@ -151,16 +152,16 @@ function renderLista() {
   zona.style.cssText = 'padding:10px;flex:1;overflow-y:auto;min-height:0;'
   body.appendChild(zona)
 
-  // Active todos — sorted by days open descending (oldest first)
+  // Active: oldest first (most days open at top)
   const activos = todosList
     .filter(t => t.status === 'pending' || t.status === 'in_progress')
     .sort((a, b) => {
       const da = diasEntre(a.started_at, null) || 0
       const db2 = diasEntre(b.started_at, null) || 0
-      return db2 - da // oldest first
+      return db2 - da
     })
 
-  // Done todos — sorted by completed_at descending (most recent first)
+  // Done: most recent first
   const hechos = todosList
     .filter(t => t.status === 'done')
     .sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0))
@@ -196,7 +197,6 @@ function renderLista() {
     draggedTodo = null
   })
 
-  // Reporte
   const rw = renderReporte('lista')
   body.appendChild(rw)
 }
@@ -242,10 +242,6 @@ function crearTodoItem(todo) {
 // ==================== KANBAN ====================
 
 function renderKanban() {
-  // Archive closed todos when entering kanban view
-  // Closed todos from previous renders stay in todosList with status=closed
-  // but we don't show them in the board - only in the log
-
   const body = document.getElementById('todos-body')
   body.innerHTML = ''
   body.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;'
@@ -258,8 +254,7 @@ function renderKanban() {
   zona.style.cssText = 'display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:10px;flex:1;min-height:0;'
   body.appendChild(zona)
 
-  // Source column = ALL pending todos (status=pending, regardless of kanban_column_id)
-  // This is the mirror of the To-Do list
+  // Source column = ALL pending todos (mirror of To-Do list)
   const sourceTodos = todosList
     .filter(t => t.status === 'pending')
     .sort((a, b) => {
@@ -270,7 +265,7 @@ function renderKanban() {
 
   zona.appendChild(crearKanbanColSource(sourceTodos))
 
-  // Track IDs shown in source
+  // Track source IDs so they don't appear in other columns
   const sourceIds = new Set(sourceTodos.map(t => t.id))
 
   kanbanColumns.forEach(col => {
@@ -278,31 +273,30 @@ function renderKanban() {
 
     let items
     if (isLocked) {
-      // Show closed todos from current session only
-      // "Current session" = closed_this_session flag set in memory
+      // Only show todos closed THIS session
       items = todosList
-        .filter(t => {
-          if (t.kanban_column_id !== col.id) return false
-          if (t.status !== 'closed') return false
-          // Only show if closed in this session (flag set when user dragged to closed)
-          return t._closedThisSession === true
-        })
+        .filter(t =>
+          t.kanban_column_id === col.id &&
+          t.status === 'closed' &&
+          t._closedThisSession === true
+        )
         .sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0))
     } else {
+      // Show in_progress todos assigned to this column
       items = todosList
-        .filter(t => {
-          if (t.kanban_column_id !== col.id) return false
-          if (sourceIds.has(t.id)) return false
-          if (t.status === 'closed' || t.status === 'done') return false
-          return true
-        })
+        .filter(t =>
+          t.kanban_column_id === col.id &&
+          !sourceIds.has(t.id) &&
+          t.status !== 'closed' &&
+          t.status !== 'done'
+        )
         .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
     }
 
     zona.appendChild(crearKanbanCol(col, items, isLocked))
   })
 
-  // Add column button
+  // Add column button — insert before Closed (last child)
   const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
   if (userCols.length < 4) {
     const addCol = document.createElement('button')
@@ -331,11 +325,9 @@ function crearKanbanColSource(sourceTodos) {
     </div>
   `
 
-  sourceTodos.forEach(todo => {
-    const card = crearKanbanCard(todo, 'source', false, true)
-    colDiv.appendChild(card)
-  })
+  sourceTodos.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, 'source', false, true)))
 
+  // Drop zone — moving card back to To-Do's
   colDiv.addEventListener('dragover', e => {
     e.preventDefault()
     const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
@@ -358,12 +350,9 @@ function crearKanbanColSource(sourceTodos) {
 
     todo.kanban_column_id = null
     todo.status = 'pending'
+    delete todo._closedThisSession
 
-    await db.from('todos').update({
-      kanban_column_id: null,
-      status: 'pending'
-    }).eq('id', draggedTodo)
-
+    await db.from('todos').update({ kanban_column_id: null, status: 'pending' }).eq('id', draggedTodo)
     draggedTodo = null
     renderTodos()
     await cargarTodosSummary()
@@ -378,19 +367,17 @@ function crearKanbanCol(col, items, isLocked) {
   colDiv.dataset.colId = col.id
   colDiv.style.cssText = 'min-width:150px;flex:1;overflow-y:auto;max-height:calc(100vh - 240px);'
 
-  const esOwner = !sesionActual || true
-
   colDiv.innerHTML = `
     <div class="kanban-col-header">
       <span class="kanban-col-title ${isLocked ? 'closed-title' : ''}"
-        contenteditable="${!isLocked && esOwner}"
+        contenteditable="${!isLocked}"
         data-col-id="${col.id}"
         data-original="${col.title}"
         ${!isLocked ? `onblur="renombrarColumna('${col.id}', this)"` : ''}>
         ${col.title}
       </span>
       <span class="kanban-col-count">${items.length}</span>
-      ${!isLocked && esOwner ? `<button class="kanban-col-delete" onclick="eliminarColumna('${col.id}')">✕</button>` : ''}
+      ${!isLocked ? `<button class="kanban-col-delete" onclick="eliminarColumna('${col.id}')">✕</button>` : ''}
     </div>
   `
 
@@ -402,7 +389,6 @@ function crearKanbanCol(col, items, isLocked) {
   items.forEach(todo => colDiv.appendChild(crearKanbanCard(todo, col.id, isLocked, false)))
   if (!isLocked) colDiv.appendChild(addBtn)
 
-  // Dragover
   colDiv.addEventListener('dragover', e => {
     e.preventDefault()
     const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
@@ -426,10 +412,11 @@ function crearKanbanCol(col, items, isLocked) {
     if (!todo) return
 
     if (isLocked) {
+      // Move to Closed — keep visible THIS session only
       todo.kanban_column_id = col.id
       todo.status = 'closed'
       todo.completed_at = new Date().toISOString()
-      todo._closedThisSession = true  // ← ADD THIS FLAG
+      todo._closedThisSession = true // flag for current session
 
       await db.from('todos').update({
         kanban_column_id: col.id,
@@ -443,11 +430,12 @@ function crearKanbanCol(col, items, isLocked) {
       return
     }
 
-    // Move to regular kanban col
+    // Move to regular kanban column
     const afterEl = getDragAfterElement(colDiv, e.clientY, '.kanban-card')
     todosList = todosList.filter(t => t.id !== draggedTodo)
     todo.kanban_column_id = col.id
     todo.status = 'in_progress'
+    delete todo._closedThisSession
 
     if (!afterEl) {
       todo.sort_order = todosList.filter(t => t.kanban_column_id === col.id).length
@@ -460,14 +448,8 @@ function crearKanbanCol(col, items, isLocked) {
     const colItems = todosList.filter(t => t.kanban_column_id === col.id)
     colItems.forEach((t, i) => t.sort_order = i)
 
-    await db.from('todos').update({
-      kanban_column_id: col.id,
-      status: 'in_progress'
-    }).eq('id', draggedTodo)
-
-    await Promise.all(colItems.map(t =>
-      db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)
-    ))
+    await db.from('todos').update({ kanban_column_id: col.id, status: 'in_progress' }).eq('id', draggedTodo)
+    await Promise.all(colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)))
 
     draggedTodo = null
     renderTodos()
@@ -485,23 +467,22 @@ function renderReporte(modo) {
 
   const isOpen = !reporteOculto
 
-  // Active: oldest first (most days open at top)
+  // Active: oldest first (most days open = highest priority)
   const activos = todosList
     .filter(t => t.status !== 'done' && t.status !== 'closed')
     .sort((a, b) => {
       const da = diasEntre(b.started_at, null) || 0
       const db2 = diasEntre(a.started_at, null) || 0
-      return da - db2 // oldest first = more days = higher
+      return da - db2
     })
 
   // Closed/done: most recent first
   const cerrados = todosList
     .filter(t => t.status === 'done' || t.status === 'closed')
-    .sort((a, b) => {
-      const ta = new Date(b.completed_at || b.updated_at || 0)
-      const tb = new Date(a.completed_at || a.updated_at || 0)
-      return ta - tb
-    })
+    .sort((a, b) =>
+      new Date(b.completed_at || b.updated_at || 0) -
+      new Date(a.completed_at || a.updated_at || 0)
+    )
 
   const items = [...activos, ...cerrados]
 
@@ -531,7 +512,10 @@ function renderReporte(modo) {
         ? diasEntre(todo.started_at, todo.completed_at)
         : diasEntre(todo.started_at, null)
 
-      const diasLabel = dias !== null ? (isClosed ? `${dias}d` : `${dias}d open`) : '—'
+      const diasLabel = dias !== null
+        ? (isClosed ? `${dias}d` : `${dias}d open`)
+        : '—'
+
       const diasClass = isClosed ? 'ok' : (dias !== null && dias > 7 ? 'vencido' : '')
 
       const dotClass = todo.status === 'closed' ? 'closed'
@@ -794,7 +778,7 @@ async function agregarTodoEnColumna(colId) {
 async function agregarColumna() {
   const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
   if (userCols.length >= 4) {
-    return alert('Maximum columns reached (6 total: To-Do\'s + 4 custom + Closed).')
+    return alert("Maximum columns reached (6 total: To-Do's + 4 custom + Closed).")
   }
 
   const titulo = prompt('Column name:')
