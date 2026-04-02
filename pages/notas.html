@@ -19,7 +19,7 @@
   </div>
 </nav>
 
-<div class="notas-layout">
+<div class="notas-layout" id="notas-layout">
 
   <!-- Sidebar izquierdo: libretas -->
   <aside class="sidebar" id="sidebar">
@@ -37,6 +37,8 @@
       </div>
     </div>
   </aside>
+
+  <div class="resizer" id="resizer-1"></div>
 
   <!-- Panel central: lista de notas -->
   <section class="notas-panel" id="notas-panel">
@@ -56,6 +58,8 @@
       <li class="nota-empty">Select a notebook to see its notes.</li>
     </ul>
   </section>
+
+  <div class="resizer" id="resizer-2"></div>
 
   <!-- Panel derecho: editor de nota -->
   <section class="editor-panel" id="editor-panel">
@@ -103,6 +107,8 @@
     </div>
   </section>
 
+  <div class="resizer" id="resizer-3" style="display:none;"></div>
+
   <!-- Panel To-Do's -->
   <section class="todos-panel" id="todos-panel">
     <div class="todos-header">
@@ -140,6 +146,8 @@
     else iniciarNotas(sesion)
   })()
 </script>
+
+<script src="../js/resizer.js"></script>
 
 </body>
 </html>

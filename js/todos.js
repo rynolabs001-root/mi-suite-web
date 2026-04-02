@@ -27,8 +27,9 @@ async function iniciarTodos() {
     return
   }
 
-  todosPanel.style.display = 'flex'
-  document.querySelector('.notas-layout').style.gridTemplateColumns = '220px 280px 1fr 300px'
+    todosPanel.style.display = 'flex'
+    document.getElementById('resizer-3').style.display = 'block'
+    document.querySelector('.notas-layout').style.gridTemplateColumns = ''
 
   await cargarTodos()
   renderTodos()
@@ -111,6 +112,12 @@ function renderLista() {
     div.addEventListener('drop', () => reordenarTodo(todo.id))
     body.appendChild(div)
   })
+}
+// ---- cerrar ----
+function cerrarTodos() {
+  todosPanel.style.display = 'none'
+  const r3 = document.getElementById('resizer-3')
+  if (r3) r3.style.display = 'none'
 }
 
 // ---- KANBAN ----

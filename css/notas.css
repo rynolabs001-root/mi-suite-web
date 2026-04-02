@@ -1,8 +1,7 @@
 * { box-sizing: border-box; }
 
 .notas-layout {
-  display: grid;
-  grid-template-columns: 220px 280px 1fr;
+  display: flex;
   height: calc(100vh - 52px);
   overflow: hidden;
 }
@@ -15,7 +14,7 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
-  min-width: 0;
+  min-width: 160px; max-width: 400px;
 }
 
 .sidebar-header {
@@ -110,7 +109,7 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
-  min-width: 0;
+  min-width: 200px; max-width: 500px;
 }
 
 .notas-panel-header {
@@ -221,7 +220,7 @@ select {
   flex-direction: column;
   overflow: hidden;
   height: 100%;
-  min-width: 0;
+  flex: 1; min-width: 300px;
 }
 
 .editor-placeholder {
@@ -341,7 +340,7 @@ select {
   overflow: hidden;
   height: 100%;
   min-width: 0;
-  width: 300px;
+  min-width: 250px; max-width: 600px;
 }
 
 .todos-header {
@@ -659,4 +658,38 @@ select {
   .notas-panel { height: auto; max-height: 300px; border-right: none; border-bottom: 1px solid var(--border); }
   .editor-panel { height: auto; min-height: 420px; }
   .todos-panel { width: 100%; height: auto; min-height: 300px; border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* Resizable dividers */
+.resizer {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+
+.resizer:hover,
+.resizer.resizing {
+  background: var(--accent);
+}
+
+.resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 32px;
+  border-radius: 1px;
+  background: var(--border2);
+  transition: background 0.15s;
+}
+
+.resizer:hover::after,
+.resizer.resizing::after {
+  background: var(--accent);
 }
