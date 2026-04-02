@@ -6,6 +6,8 @@ let historialSesion = []
 async function iniciarNotas(sesion) {
   sesionActual = sesion
   await cargarLibretas()
+  await cargarTodosSummary()
+  await cargarPapeleraCuenta()
   iniciarBusqueda()
 }
 
@@ -33,7 +35,7 @@ async function cargarLibretas() {
     li.dataset.id = libreta.id
     li.innerHTML = `
       <div class="libreta-dot"></div>
-      <span>${descifrar(libreta.name_enc)}</span>
+      <span class="libreta-name">${descifrar(libreta.name_enc)}</span>
     `
     li.onclick = () => seleccionarLibreta(libreta, li)
     lista.appendChild(li)
@@ -59,7 +61,141 @@ function seleccionarLibreta(libreta, el) {
   el.classList.add('active')
   libretaActual = libreta
   document.getElementById('libreta-nombre').textContent = descifrar(libreta.name_enc)
+
+  // Mobile: ir a vista de notas
+  if (window.innerWidth <= 768) {
+    mobileNavSelect('notas')
+  }
+
   cargarNotas(libreta.id)
+}
+
+// ==================== TODOS SUMMARY ====================
+
+async function cargarTodosSummary() {
+  const { data: cols } = await db
+    .from('kanban_columns')
+    .select('id, title, note_id')
+
+  const { data: todos } = await db
+    .from('todos')
+    .select('id, status, kanban_column_id')
+    .eq('note_id', notaActual?.id || '00000000-0000-0000-0000-000000000000')
+
+  // Para el summary global tomamos todos los todos del usuario
+  const { data: allTodos } = await db
+    .from('todos')
+    .select('id, status, kanban_column_id, note_id')
+
+  const { data: allCols } = await db
+    .from('kanban_columns')
+    .select('id, title, note_id')
+    .order('sort_order')
+
+  if (!allTodos || !allCols) return
+
+  const total = allTodos.length
+  const pendientes = allTodos.filter(t => t.status !== 'done').length
+
+  const badge = document.getElementById('todos-total-badge')
+  if (badge) {
+    badge.textContent = `${pendientes} pending`
+    badge.className = 'todos-summary-total' + (pendientes > 0 ? ' warn' : '')
+  }
+
+  // Agrupar por columna única (por título)
+  const colMap = {}
+  allCols.forEach(col => {
+    if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
+    colMap[col.title].ids.push(col.id)
+  })
+
+  allTodos.forEach(todo => {
+    Object.values(colMap).forEach(col => {
+      if (col.ids.includes(todo.kanban_column_id)) col.count++
+    })
+  })
+
+  const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
+  const colsList = document.getElementById('todos-cols-list')
+  if (!colsList) return
+
+  colsList.innerHTML = ''
+
+  const uniqueCols = Object.values(colMap)
+  if (!uniqueCols.length) {
+    colsList.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No tasks yet.</div>'
+    return
+  }
+
+  uniqueCols.forEach((col, i) => {
+    const row = document.createElement('div')
+    row.className = 'todos-col-row'
+    row.innerHTML = `
+      <div class="todos-col-dot" style="background:${colColors[i % colColors.length]};"></div>
+      <span class="todos-col-name">${col.title}</span>
+      <span class="todos-col-count">${col.count}</span>
+    `
+    row.onclick = () => abrirTodosGlobal()
+    colsList.appendChild(row)
+  })
+}
+
+async function abrirTodosGlobal() {
+  // Abrir el panel de todos sin nota seleccionada
+  todosPanel = document.getElementById('todos-panel')
+  if (!todosPanel) return
+
+  const visible = todosPanel.style.display === 'flex'
+  if (visible) { cerrarTodos(); return }
+
+  const resizer3 = document.getElementById('resizer-3')
+  const editor = document.getElementById('editor-panel')
+
+  todosPanel.style.display = 'flex'
+  todosPanel.style.flex = '1'
+  todosPanel.style.width = 'auto'
+  todosPanel.style.minWidth = '250px'
+  todosPanel.style.maxWidth = 'none'
+
+  if (resizer3) resizer3.style.display = 'block'
+  if (editor) { editor.style.flex = '1'; editor.style.minWidth = '300px' }
+
+  // Cargar todos globales
+  await cargarTodosGlobal()
+  renderTodos()
+}
+
+async function cargarTodosGlobal() {
+  const { data: cols } = await db
+    .from('kanban_columns')
+    .select('*')
+    .order('sort_order')
+
+  kanbanColumns = cols || []
+
+  const { data: todos } = await db
+    .from('todos')
+    .select('*')
+    .order('sort_order')
+
+  todosList = todos || []
+}
+
+// ==================== PAPELERA ====================
+
+async function cargarPapeleraCuenta() {
+  const { data } = await db
+    .from('trash')
+    .select('id')
+
+  const count = data?.length || 0
+  const el = document.getElementById('papelera-count')
+  if (el) el.textContent = count
+}
+
+function abrirPapelera() {
+  alert('Papelera — próximamente.')
 }
 
 // ==================== NOTAS ====================
@@ -133,10 +269,12 @@ function abrirNota(nota, el) {
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(nota.updated_at)
   document.getElementById('btn-pin').style.opacity = nota.is_pinned ? '1' : '0.4'
 
-  const contenidoInicial = document.getElementById('nota-contenido').innerHTML
-  historialSesion.push(contenidoInicial)
+  historialSesion.push(document.getElementById('nota-contenido').innerHTML)
 
-  // Autoguardado cada 5 minutos si hay cambios
+  // Mobile: ir a vista editor
+  if (window.innerWidth <= 768) mobileNavSelect('editor')
+
+  // Autoguardado cada 5 minutos
   if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
   window._autoguardadoInterval = setInterval(async () => {
     if (!notaActual || !window._hayaCambios) return
@@ -186,6 +324,7 @@ async function eliminarNota() {
   if (typeof cerrarTodos === 'function') cerrarTodos()
 
   await cargarNotas(libretaActual.id)
+  await cargarPapeleraCuenta()
 }
 
 async function togglePin() {
@@ -219,11 +358,7 @@ function highlight(color) {
   const range = sel.getRangeAt(0)
   const mark = document.createElement('mark')
   mark.className = color === 'yellow' ? 'hl-yellow' : 'hl-pink'
-  try {
-    range.surroundContents(mark)
-  } catch(e) {
-    console.warn('Could not highlight selection.')
-  }
+  try { range.surroundContents(mark) } catch(e) { console.warn('Could not highlight.') }
   sel.removeAllRanges()
 }
 
@@ -247,8 +382,7 @@ function onContenidoChange() {
 function deshacer() {
   if (historialSesion.length < 2) return
   historialSesion.pop()
-  const anterior = historialSesion[historialSesion.length - 1]
-  document.getElementById('nota-contenido').innerHTML = anterior
+  document.getElementById('nota-contenido').innerHTML = historialSesion[historialSesion.length - 1]
 }
 
 // ==================== VERSIONES ====================
@@ -279,19 +413,15 @@ async function verVersiones() {
 
   if (!data?.length) return alert('No saved versions for this note.')
 
-  const lista = data.map((v, i) =>
-    `${i + 1}. ${formatearFecha(v.saved_at)}`
-  ).join('\n')
-
+  const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
   const seleccion = prompt(`Available versions:\n${lista}\n\nEnter number to restore:`)
   if (!seleccion) return
 
   const idx = parseInt(seleccion) - 1
   if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
 
-  const version = data[idx]
-  document.getElementById('nota-titulo').value = descifrar(version.title_enc)
-  document.getElementById('nota-contenido').innerHTML = descifrar(version.content_enc)
+  document.getElementById('nota-titulo').value = descifrar(data[idx].title_enc)
+  document.getElementById('nota-contenido').innerHTML = descifrar(data[idx].content_enc)
   window._hayaCambios = true
   alert('Version restored. Save the note to confirm.')
 }
@@ -311,6 +441,7 @@ async function registrarActividad(accion) {
 
 function iniciarBusqueda() {
   const input = document.getElementById('buscar-notas')
+  if (!input) return
   input.addEventListener('input', () => {
     const termino = input.value.toLowerCase()
     document.querySelectorAll('.nota-item').forEach(el => {
@@ -318,6 +449,46 @@ function iniciarBusqueda() {
       const preview = el.querySelector('.nota-item-preview')?.textContent.toLowerCase() || ''
       el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
     })
+  })
+}
+
+async function buscarGlobal(termino) {
+  if (!termino) return
+  // Buscar en todas las notas
+  const { data } = await db
+    .from('notes')
+    .select('id, title_enc, content_enc, notebook_id, updated_at')
+
+  if (!data) return
+
+  const resultados = data.filter(n => {
+    const titulo = descifrar(n.title_enc).toLowerCase()
+    const contenido = descifrar(n.content_enc).replace(/<[^>]+>/g, '').toLowerCase()
+    return titulo.includes(termino.toLowerCase()) || contenido.includes(termino.toLowerCase())
+  })
+
+  const lista = document.getElementById('notas-list')
+  lista.innerHTML = ''
+
+  if (!resultados.length) {
+    lista.innerHTML = '<li class="nota-empty">No results found.</li>'
+    document.getElementById('libreta-nombre').textContent = `Results for "${termino}"`
+    return
+  }
+
+  document.getElementById('libreta-nombre').textContent = `Results for "${termino}" (${resultados.length})`
+
+  resultados.forEach(nota => {
+    const li = document.createElement('li')
+    li.className = 'nota-item'
+    li.dataset.id = nota.id
+    li.innerHTML = `
+      <div class="nota-item-titulo">${descifrar(nota.title_enc) || 'Untitled'}</div>
+      <div class="nota-item-preview">${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}</div>
+      <div class="nota-item-fecha">${formatearFecha(nota.updated_at)}</div>
+    `
+    li.onclick = () => abrirNota(nota, li)
+    lista.appendChild(li)
   })
 }
 
@@ -330,11 +501,7 @@ function cifrar(texto) {
 
 function descifrar(texto) {
   if (!texto) return ''
-  try {
-    return decodeURIComponent(escape(atob(texto)))
-  } catch {
-    return texto
-  }
+  try { return decodeURIComponent(escape(atob(texto))) } catch { return texto }
 }
 
 // ==================== UTILIDADES ====================

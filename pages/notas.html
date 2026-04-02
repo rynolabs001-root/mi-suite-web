@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Notas — Mi Suite Web</title>
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/notas.css">
@@ -21,38 +21,86 @@
 
 <div class="notas-layout" id="notas-layout">
 
-  <!-- Sidebar izquierdo: libretas -->
+  <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar" id="sidebar">
+
+    <!-- Búsqueda global -->
     <div class="sidebar-header">
-      <span class="sidebar-title">Libretas</span>
-      <button class="btn-icon" onclick="nuevaLibreta()" title="Nueva libreta">+</button>
+      <input class="sidebar-search" id="sidebar-search"
+        placeholder="🔍 Buscar notas..."
+        oninput="buscarGlobal(this.value)">
     </div>
-    <ul class="libretas-list" id="libretas-list">
-      <li class="libreta-item loading">Cargando...</li>
-    </ul>
+
+    <!-- LIBRETAS -->
+    <div class="libretas-wrap">
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Libretas</span>
+        <button class="sidebar-section-add" onclick="nuevaLibreta()" title="Nueva libreta">+</button>
+      </div>
+      <ul class="libretas-list" id="libretas-list">
+        <li class="libreta-item loading">Cargando...</li>
+      </ul>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- TO-DO'S SUMMARY -->
+    <div class="todos-summary-wrap">
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">To-Do's</span>
+      </div>
+      <div class="todos-summary-card">
+        <div class="todos-summary-header" id="todos-summary-header" onclick="abrirTodosGlobal()">
+          <div class="todos-summary-icon">✅</div>
+          <span class="todos-summary-label">To-Do's</span>
+          <span class="todos-summary-total" id="todos-total-badge">—</span>
+        </div>
+        <div class="todos-cols-list" id="todos-cols-list">
+          <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">
+            Cargando...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- PAPELERA -->
+    <div class="papelera-wrap">
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Papelera</span>
+      </div>
+      <div class="papelera-item" onclick="abrirPapelera()">
+        <span style="font-size:14px;">🗑</span>
+        <span class="papelera-label">Papelera</span>
+        <span class="papelera-count" id="papelera-count">0</span>
+      </div>
+    </div>
+
+    <!-- Dark mode -->
     <div class="sidebar-footer">
       <span class="sidebar-footer-label" id="theme-label">Switch to Dark Mode</span>
       <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
         <div class="theme-toggle-thumb"></div>
       </div>
     </div>
+
   </aside>
 
   <div class="resizer" id="resizer-1"></div>
 
-  <!-- Panel central: lista de notas -->
+  <!-- ==================== PANEL NOTAS ==================== -->
   <section class="notas-panel" id="notas-panel">
     <div class="notas-panel-header">
       <span class="notas-panel-title" id="libreta-nombre">Select a notebook</span>
       <div class="notas-panel-actions">
-        <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Note title"
-  oninput="window._hayaCambios = true">
+        <input type="text" id="buscar-notas" placeholder="Search notes..." class="input-buscar">
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
           <option value="title">Title</option>
         </select>
-        <button class="btn btn-primary" onclick="nuevaNota()">+ Note</button>
+        <button class="btn btn-primary btn-small" onclick="nuevaNota()">+ Note</button>
       </div>
     </div>
     <ul class="notas-list" id="notas-list">
@@ -62,7 +110,7 @@
 
   <div class="resizer" id="resizer-2"></div>
 
-  <!-- Panel derecho: editor de nota -->
+  <!-- ==================== EDITOR ==================== -->
   <section class="editor-panel" id="editor-panel">
     <div class="editor-placeholder" id="editor-placeholder">
       <p>Select or create a note to get started.</p>
@@ -88,7 +136,9 @@
         <button onclick="eliminarNota()" title="Delete note" class="btn-danger-icon">&#128465;</button>
       </div>
 
-      <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Note title">
+      <input type="text" id="nota-titulo" class="editor-titulo"
+        placeholder="Note title"
+        oninput="window._hayaCambios = true">
 
       <div id="nota-contenido" class="editor-area" contenteditable="true"
         onkeydown="atajosTeclado(event)"
@@ -110,7 +160,7 @@
 
   <div class="resizer" id="resizer-3" style="display:none;"></div>
 
-  <!-- Panel To-Do's -->
+  <!-- ==================== TODOS PANEL ==================== -->
   <section class="todos-panel" id="todos-panel">
     <div class="todos-header">
       <span class="todos-title">To-Do's</span>
@@ -136,10 +186,28 @@
 
 </div>
 
+<!-- Mobile bottom nav -->
+<nav class="mobile-nav" id="mobile-nav">
+  <div class="mobile-nav-item active" id="mnav-inicio" onclick="mobileNavSelect('inicio')">
+    <span class="mobile-nav-icon">📚</span>
+    <span class="mobile-nav-label">Inicio</span>
+  </div>
+  <div class="mobile-nav-item" id="mnav-todos" onclick="mobileNavSelect('todos')">
+    <span class="mobile-nav-icon">✅</span>
+    <span class="mobile-nav-label">To-Do's</span>
+  </div>
+  <div class="mobile-nav-item" id="mnav-papelera" onclick="mobileNavSelect('papelera')">
+    <span class="mobile-nav-icon">🗑</span>
+    <span class="mobile-nav-label">Papelera</span>
+  </div>
+</nav>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/app.js"></script>
 <script src="../js/todos.js"></script>
 <script src="../js/notas.js"></script>
+<script src="../js/resizer.js"></script>
+<script src="../js/mobile.js"></script>
 <script>
   (async () => {
     const sesion = await verificarSesion()
@@ -147,8 +215,6 @@
     else iniciarNotas(sesion)
   })()
 </script>
-
-<script src="../js/resizer.js"></script>
 
 </body>
 </html>
