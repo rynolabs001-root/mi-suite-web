@@ -34,91 +34,85 @@ function mobileNavSelect(vista) {
   aplicarVistaMobile(vista)
 }
 
-function aplicarVistaMobile(vista) {
-  const sidebar = document.getElementById('sidebar')
-  const notasPanel = document.getElementById('notas-panel')
-  const editorPanel = document.getElementById('editor-panel')
-  const todosPanel = document.getElementById('todos-panel')
-  const mobileNav = document.getElementById('mobile-nav')
-  const resizers = document.querySelectorAll('.resizer')
-
-  resizers.forEach(r => r.style.display = 'none')
-
-  // Ocultar todo
-  ;[sidebar, notasPanel, editorPanel, todosPanel].forEach(el => {
+function ocultarTodo() {
+  const ids = ['sidebar', 'notas-panel', 'editor-panel', 'todos-panel']
+  ids.forEach(id => {
+    const el = document.getElementById(id)
     if (el) el.style.display = 'none'
   })
+  document.querySelectorAll('.resizer').forEach(r => r.style.display = 'none')
+  const mobileNav = document.getElementById('mobile-nav')
+  if (mobileNav) mobileNav.style.display = 'none'
+}
 
-  const alturaContenido = 'calc(var(--vh, 1vh) * 100 - 52px)'
+function mostrarPanel(id, extra = {}) {
+  const el = document.getElementById(id)
+  if (!el) return
+  const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
+  el.style.display = 'flex'
+  el.style.width = '100%'
+  el.style.height = altura
+  el.style.flex = 'none'
+  el.style.borderRight = 'none'
+  el.style.borderLeft = 'none'
+  el.style.borderBottom = 'none'
+  Object.entries(extra).forEach(([k, v]) => el.style[k] = v)
+}
+
+function aplicarVistaMobile(vista) {
+  ocultarTodo()
 
   switch (vista) {
 
     case 'inicio':
-      // Sin barra inferior en inicio
-      if (mobileNav) mobileNav.style.display = 'none'
-      if (sidebar) {
-        sidebar.style.display = 'flex'
-        sidebar.style.width = '100%'
-        sidebar.style.height = alturaContenido
-        sidebar.style.flex = 'none'
-        sidebar.style.overflowY = 'auto'
-        sidebar.style.borderRight = 'none'
-        sidebar.style.borderBottom = 'none'
-      }
+      mostrarPanel('sidebar')
       actualizarNavbarMobile('inicio')
       break
 
     case 'notas':
-      if (mobileNav) mobileNav.style.display = 'none'
-      if (notasPanel) {
-        notasPanel.style.display = 'flex'
-        notasPanel.style.width = '100%'
-        notasPanel.style.height = alturaContenido
-        notasPanel.style.flex = 'none'
-        notasPanel.style.borderRight = 'none'
-      }
+      mostrarPanel('notas-panel')
       actualizarNavbarMobile('notas')
       break
 
     case 'editor':
-      if (mobileNav) mobileNav.style.display = 'none'
-      if (editorPanel) {
-        editorPanel.style.display = 'flex'
-        editorPanel.style.width = '100%'
-        editorPanel.style.height = alturaContenido
-        editorPanel.style.flex = 'none'
-      }
+      mostrarPanel('editor-panel')
       actualizarNavbarMobile('editor')
       break
 
     case 'todos':
-      if (mobileNav) mobileNav.style.display = 'none'
+      const todosPanel = document.getElementById('todos-panel')
       if (todosPanel) {
+        const altura = 'calc(var(--vh, 1vh) * 100 - 52px)'
         todosPanel.style.display = 'flex'
         todosPanel.style.width = '100%'
-        todosPanel.style.height = alturaContenido
+        todosPanel.style.height = altura
         todosPanel.style.flex = 'none'
         todosPanel.style.borderLeft = 'none'
+        todosPanel.style.borderRight = 'none'
+        todosPanel.style.borderBottom = 'none'
+        todosPanel.style.position = 'relative'
+        todosPanel.style.zIndex = '10'
       }
       actualizarNavbarMobile('todos')
+      notaActual = null
       cargarTodosGlobal().then(() => renderTodos())
       break
 
     case 'papelera':
-      if (mobileNav) mobileNav.style.display = 'none'
       actualizarNavbarMobile('papelera')
       abrirPapelera()
       break
   }
 }
 
-// ==================== NAVBAR DINAMICO ====================
+// ==================== NAVBAR DINÁMICO ====================
 
 function actualizarNavbarMobile(vista) {
   const nav = document.querySelector('nav')
   if (!nav) return
 
   switch (vista) {
+
     case 'inicio':
       nav.innerHTML = `
         <strong>Mi Suite Web</strong>
@@ -134,51 +128,126 @@ function actualizarNavbarMobile(vista) {
 
     case 'notas':
       nav.innerHTML = `
-        <a href="#" onclick="mobileNavSelect('inicio')" style="color:var(--accent);font-size:14px;text-decoration:none;">‹ Inicio</a>
-        <strong id="libreta-nombre-nav">${libretaActual ? descifrar(libretaActual.name_enc) : 'Notas'}</strong>
-        <button onclick="nuevaNota()" style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;">+ Nota</button>
+        <a href="#" onclick="mobileNavSelect('inicio')"
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
+          ‹ Inicio
+        </a>
+        <strong style="font-size:13px;flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px;">
+          ${libretaActual ? descifrar(libretaActual.name_enc) : 'Notas'}
+        </strong>
+        <button onclick="nuevaNota()"
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
+          + Nota
+        </button>
       `
       break
 
     case 'editor':
       nav.innerHTML = `
-        <a href="#" onclick="guardarYRegresar()" style="color:var(--accent);font-size:14px;text-decoration:none;">‹ Notas</a>
-        <strong style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;" id="nota-titulo-nav"></strong>
-        <button onclick="guardarYRegresar()" style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;">Save</button>
+        <a href="#" onclick="guardarYRegresar()"
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
+          ‹ Notas
+        </a>
+        <strong style="font-size:13px;flex:1;text-align:center;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;"
+          id="nota-titulo-nav">
+          Note
+        </strong>
+        <button onclick="guardarYRegresar()"
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
+          Save
+        </button>
       `
-      // Actualizar título
       setTimeout(() => {
-        const tituloEl = document.getElementById('nota-titulo-nav')
-        const tituloInput = document.getElementById('nota-titulo')
-        if (tituloEl && tituloInput) tituloEl.textContent = tituloInput.value || 'New note'
+        const el = document.getElementById('nota-titulo-nav')
+        const input = document.getElementById('nota-titulo')
+        if (el && input) el.textContent = input.value || 'New note'
       }, 100)
       break
 
     case 'todos':
       nav.innerHTML = `
-        <a href="#" onclick="mobileNavSelect('inicio')" style="color:var(--accent);font-size:14px;text-decoration:none;">‹ Inicio</a>
-        <strong>To-Do's</strong>
-        <button onclick="agregarTodo()" style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;">+ Nueva</button>
+        <a href="#" onclick="mobileNavSelect('inicio')"
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
+          ‹ Inicio
+        </a>
+        <strong style="font-size:13px;flex:1;text-align:center;">To-Do's</strong>
+        <button onclick="agregarTodoMobile()"
+          style="background:var(--accent);color:#fff;border:none;border-radius:99px;padding:4px 12px;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;">
+          + Nueva
+        </button>
       `
       break
 
     case 'papelera':
       nav.innerHTML = `
-        <a href="#" onclick="mobileNavSelect('inicio')" style="color:var(--accent);font-size:14px;text-decoration:none;">‹ Inicio</a>
-        <strong>Papelera</strong>
-        <span></span>
+        <a href="#" onclick="mobileNavSelect('inicio')"
+          style="color:var(--accent);font-size:14px;text-decoration:none;font-family:var(--font);white-space:nowrap;">
+          ‹ Inicio
+        </a>
+        <strong style="font-size:13px;flex:1;text-align:center;">Papelera</strong>
+        <span style="width:60px;"></span>
       `
       break
   }
 }
 
-// ==================== GUARDAR Y REGRESAR ====================
+// ==================== ACCIONES MOBILE ====================
 
 async function guardarYRegresar() {
   if (notaActual && window._hayaCambios) {
     await guardarNota()
   }
   mobileNavSelect('notas')
+}
+
+function agregarTodoMobile() {
+  const input = document.getElementById('todo-input')
+  if (input) {
+    input.focus()
+    input.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
+// ==================== PATCH SIDEBAR MOBILE ====================
+
+function patchTodosSidebar() {
+  const header = document.getElementById('todos-summary-header')
+  const colsList = document.getElementById('todos-cols-list')
+
+  if (header) {
+    header.onclick = function() {
+      if (esMobile()) {
+        mobileNavSelect('todos')
+      } else {
+        if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
+      }
+    }
+  }
+
+  if (colsList) {
+    colsList.querySelectorAll('.todos-col-row').forEach(row => {
+      row.onclick = function() {
+        if (esMobile()) {
+          mobileNavSelect('todos')
+        } else {
+          if (typeof abrirTodosGlobal === 'function') abrirTodosGlobal()
+        }
+      }
+    })
+  }
+}
+
+function patchPapeleraSidebar() {
+  const item = document.querySelector('.papelera-item')
+  if (item) {
+    item.onclick = function() {
+      if (esMobile()) {
+        mobileNavSelect('papelera')
+      } else {
+        abrirPapelera()
+      }
+    }
+  }
 }
 
 // ==================== SWIPE BACK ====================
@@ -221,22 +290,15 @@ function restaurarDesktop() {
     `
   }
 
-  const mobileNav = document.getElementById('mobile-nav')
-  if (mobileNav) mobileNav.style.display = 'none'
-
   const sidebar = document.getElementById('sidebar')
   const notasPanel = document.getElementById('notas-panel')
   const editorPanel = document.getElementById('editor-panel')
+  const todosPanel = document.getElementById('todos-panel')
 
-  if (sidebar) {
-    sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);border-bottom:none;overflow:hidden;'
-  }
-  if (notasPanel) {
-    notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);'
-  }
-  if (editorPanel) {
-    editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;'
-  }
+  if (sidebar) sidebar.style.cssText = 'display:flex;width:220px;height:100%;flex:none;border-right:1px solid var(--border);'
+  if (notasPanel) notasPanel.style.cssText = 'display:flex;width:260px;height:100%;flex:none;border-right:1px solid var(--border);'
+  if (editorPanel) editorPanel.style.cssText = 'display:flex;flex:1;height:100%;min-width:0;'
+  if (todosPanel) todosPanel.style.cssText = 'display:none;'
 
   aplicarTheme()
 }
@@ -253,37 +315,21 @@ mobileNavStyle.textContent = `
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
     }
 
     nav strong {
       font-size: 14px;
       font-weight: 600;
       letter-spacing: -0.3px;
+      flex: 1;
+      text-align: center;
     }
 
     .notas-layout {
       flex-direction: column;
       height: auto;
       overflow: visible;
-    }
-
-    .sidebar {
-      width: 100% !important;
-      border-right: none !important;
-    }
-
-    .notas-panel {
-      width: 100% !important;
-      border-right: none !important;
-    }
-
-    .editor-panel {
-      width: 100% !important;
-    }
-
-    .todos-panel {
-      width: 100% !important;
-      border-left: none !important;
     }
 
     .editor-toolbar {
@@ -294,24 +340,34 @@ mobileNavStyle.textContent = `
     }
 
     .editor-toolbar::-webkit-scrollbar { display: none; }
-
     .editor-titulo { font-size: 18px; padding: 14px 16px 6px; }
-    .editor-area { padding: 6px 16px 120px; font-size: 15px; -webkit-overflow-scrolling: touch; }
+    .editor-area { padding: 6px 16px 100px; font-size: 15px; -webkit-overflow-scrolling: touch; }
     .editor-footer { padding: 8px 16px; }
 
-    .editor-footer-actions .btn:nth-child(1),
-    .editor-footer-actions .btn:nth-child(2) { display: none; }
+    .editor-footer-actions { display: none; }
 
     .kanban-col { min-width: 140px; }
     .todos-body { -webkit-overflow-scrolling: touch; }
-
+    .todos-panel { position: relative; z-index: 10; }
     .sidebar-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+    .libretas-wrap { flex: none; max-height: 45vh; }
+    .todos-summary-wrap { flex: none; }
   }
 
   @media (max-width: 768px) and (orientation: landscape) {
-    .editor-area { padding-bottom: 80px; }
+    .editor-area { padding-bottom: 60px; }
+    .libretas-wrap { max-height: 30vh; }
   }
 `
 document.head.appendChild(mobileNavStyle)
 
-document.addEventListener('DOMContentLoaded', iniciarMobileNav)
+// ==================== INIT ====================
+
+document.addEventListener('DOMContentLoaded', () => {
+  iniciarMobileNav()
+  setTimeout(() => {
+    patchTodosSidebar()
+    patchPapeleraSidebar()
+  }, 1500)
+})
