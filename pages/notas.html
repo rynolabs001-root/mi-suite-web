@@ -19,14 +19,24 @@
   </div>
 </nav>
 
-  <div class="notas-layout">
+<div class="notas-layout">
 
+  <!-- Sidebar izquierdo: libretas -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Libretas</span>
+      <button class="btn-icon" onclick="nuevaLibreta()" title="Nueva libreta">+</button>
+    </div>
+    <ul class="libretas-list" id="libretas-list">
+      <li class="libreta-item loading">Cargando...</li>
+    </ul>
     <div class="sidebar-footer">
-  <span class="sidebar-footer-label" id="theme-label">Switch to Dark Mode</span>
-  <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
-    <div class="theme-toggle-thumb"></div>
-  </div>
-</div>
+      <span class="sidebar-footer-label" id="theme-label">Switch to Dark Mode</span>
+      <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <div class="theme-toggle-thumb"></div>
+      </div>
+    </div>
+  </aside>
 
     <!-- Sidebar izquierdo: libretas -->
     <aside class="sidebar" id="sidebar">
