@@ -19,30 +19,6 @@
   </div>
 </nav>
 
-<!-- Panel To-Do's -->
-<section class="todos-panel" id="todos-panel">
-  <div class="todos-header">
-    <span class="todos-title">To-Do's</span>
-    <div class="todos-header-actions">
-      <div class="mode-tabs">
-        <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
-        <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
-      </div>
-      <div class="todos-icon-btns">
-        <button onclick="guardarVersionTodos()" title="Save version" class="todos-icon-btn">&#128190;</button>
-        <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">&#128336;</button>
-        <button onclick="cerrarTodos()" title="Close" class="todos-icon-btn">&#x2715;</button>
-      </div>
-    </div>
-  </div>
-  <div class="todos-body" id="todos-body"></div>
-  <div class="todo-add">
-    <input class="todo-input" id="todo-input" placeholder="Add a task..."
-      onkeydown="if(event.key==='Enter') agregarTodo()">
-    <button class="todo-add-btn" onclick="agregarTodo()">+</button>
-  </div>
-</section>
-
 <div class="notas-layout">
 
   <!-- Sidebar izquierdo: libretas -->
@@ -65,49 +41,49 @@
   <!-- Panel central: lista de notas -->
   <section class="notas-panel" id="notas-panel">
     <div class="notas-panel-header">
-      <span class="notas-panel-title" id="libreta-nombre">Selecciona una libreta</span>
+      <span class="notas-panel-title" id="libreta-nombre">Select a notebook</span>
       <div class="notas-panel-actions">
-        <input type="text" id="buscar-notas" placeholder="Buscar notas..." class="input-buscar">
+        <input type="text" id="buscar-notas" placeholder="Search notes..." class="input-buscar">
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
-          <option value="updated_at">Última modificación</option>
-          <option value="created_at">Fecha de creación</option>
-          <option value="title">Título</option>
+          <option value="updated_at">Last modified</option>
+          <option value="created_at">Date created</option>
+          <option value="title">Title</option>
         </select>
-        <button class="btn btn-primary" onclick="nuevaNota()">+ Nota</button>
+        <button class="btn btn-primary" onclick="nuevaNota()">+ Note</button>
       </div>
     </div>
     <ul class="notas-list" id="notas-list">
-      <li class="nota-empty">Selecciona una libreta para ver sus notas.</li>
+      <li class="nota-empty">Select a notebook to see its notes.</li>
     </ul>
   </section>
 
   <!-- Panel derecho: editor de nota -->
   <section class="editor-panel" id="editor-panel">
     <div class="editor-placeholder" id="editor-placeholder">
-      <p>Selecciona o crea una nota para comenzar.</p>
+      <p>Select or create a note to get started.</p>
     </div>
     <div class="editor-contenido" id="editor-contenido" style="display:none;">
 
       <div class="editor-toolbar">
-        <button onclick="formatear('bold')" title="Negrita (Ctrl+B)"><b>B</b></button>
-        <button onclick="formatear('italic')" title="Cursiva (Ctrl+I)"><i>I</i></button>
-        <button onclick="formatear('underline')" title="Subrayado (Ctrl+U)"><u>U</u></button>
-        <button onclick="highlight('yellow')" class="hl-yellow" title="Resaltar amarillo">A</button>
-        <button onclick="highlight('pink')" class="hl-pink" title="Resaltar fucsia">A</button>
+        <button onclick="formatear('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+        <button onclick="formatear('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+        <button onclick="formatear('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+        <button onclick="highlight('yellow')" class="hl-yellow" title="Highlight yellow">A</button>
+        <button onclick="highlight('pink')" class="hl-pink" title="Highlight pink">A</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="formatear('insertUnorderedList')" title="Lista">&#8226;</button>
-        <button onclick="formatearBloque('H2')" title="Encabezado">H</button>
+        <button onclick="formatear('insertUnorderedList')" title="List">&#8226;</button>
+        <button onclick="formatearBloque('H2')" title="Heading">H</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="deshacer()" title="Deshacer (Ctrl+Z)">↩</button>
-        <button onclick="guardarVersion()" title="Guardar versión">&#128190;</button>
-        <button onclick="verVersiones()" title="Historial de versiones">&#128336;</button>
+        <button onclick="deshacer()" title="Undo (Ctrl+Z)">↩</button>
+        <button onclick="guardarVersion()" title="Save version">&#128190;</button>
+        <button onclick="verVersiones()" title="Version history">&#128336;</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="togglePin()" id="btn-pin" title="Fijar nota">&#128204;</button>
-        <button onclick="abrirColor()" title="Color de nota">&#127774;</button>
-        <button onclick="eliminarNota()" title="Eliminar nota" class="btn-danger-icon">&#128465;</button>
+        <button onclick="togglePin()" id="btn-pin" title="Pin note">&#128204;</button>
+        <button onclick="abrirColor()" title="Note color">&#127774;</button>
+        <button onclick="eliminarNota()" title="Delete note" class="btn-danger-icon">&#128465;</button>
       </div>
 
-      <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Título de la nota">
+      <input type="text" id="nota-titulo" class="editor-titulo" placeholder="Note title">
 
       <div id="nota-contenido" class="editor-area" contenteditable="true"
         onkeydown="atajosTeclado(event)"
@@ -117,13 +93,37 @@
       <div class="editor-footer">
         <span id="nota-fecha" class="nota-fecha"></span>
         <div class="editor-footer-actions">
-          <button class="btn btn-small" onclick="abrirAdjuntos()">Adjuntos</button>
+          <button class="btn btn-small" onclick="abrirAdjuntos()">Attachments</button>
           <button class="btn btn-small" onclick="abrirTodos()">To-Do's</button>
-          <button class="btn btn-small" onclick="abrirRecordatorio()">Recordatorio</button>
-          <button class="btn btn-primary btn-small" onclick="guardarNota()">Guardar</button>
+          <button class="btn btn-small" onclick="abrirRecordatorio()">Reminder</button>
+          <button class="btn btn-primary btn-small" onclick="guardarNota()">Save</button>
         </div>
       </div>
 
+    </div>
+  </section>
+
+  <!-- Panel To-Do's -->
+  <section class="todos-panel" id="todos-panel">
+    <div class="todos-header">
+      <span class="todos-title">To-Do's</span>
+      <div class="todos-header-actions">
+        <div class="mode-tabs">
+          <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
+          <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
+        </div>
+        <div class="todos-icon-btns">
+          <button onclick="guardarVersionTodos()" title="Save version" class="todos-icon-btn">&#128190;</button>
+          <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">&#128336;</button>
+          <button onclick="cerrarTodos()" title="Close" class="todos-icon-btn">&#x2715;</button>
+        </div>
+      </div>
+    </div>
+    <div class="todos-body" id="todos-body"></div>
+    <div class="todo-add">
+      <input class="todo-input" id="todo-input" placeholder="Add a task..."
+        onkeydown="if(event.key==='Enter') agregarTodo()">
+      <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
   </section>
 
@@ -131,6 +131,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/app.js"></script>
+<script src="../js/todos.js"></script>
 <script src="../js/notas.js"></script>
 <script>
   (async () => {
@@ -139,8 +140,6 @@
     else iniciarNotas(sesion)
   })()
 </script>
-
-<script src="../js/todos.js"></script>
 
 </body>
 </html>
