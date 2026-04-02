@@ -13,16 +13,25 @@ async function iniciarTodos() {
     return
   }
 
+  todosPanel = document.getElementById('todos-panel')
+
+  if (!todosPanel) {
+    console.error('todos-panel element not found')
+    return
+  }
+
+  const visible = todosPanel.style.display === 'flex'
+
+  if (visible) {
+    cerrarTodos()
+    return
+  }
+
   todosPanel.style.display = 'flex'
-  document.querySelector('.notas-layout').style.gridTemplateColumns = '220px 280px 1fr 320px'
+  document.querySelector('.notas-layout').style.gridTemplateColumns = '220px 280px 1fr 300px'
 
   await cargarTodos()
   renderTodos()
-}
-
-function cerrarTodos() {
-  todosPanel.style.display = 'none'
-  document.querySelector('.notas-layout').style.gridTemplateColumns = '220px 280px 1fr'
 }
 
 // ==================== CARGAR ====================
