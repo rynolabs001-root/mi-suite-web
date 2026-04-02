@@ -3,7 +3,6 @@ let libretaActual = null
 let sesionActual = null
 let historialSesion = []
 
-// Apple-style note colors
 const NOTE_COLORS = [
   { id: 'none',   bg: null,      label: 'Default' },
   { id: 'yellow', bg: '#fef3c7', label: 'Yellow'  },
@@ -17,7 +16,7 @@ const NOTE_COLORS = [
 
 async function iniciarNotas(sesion) {
   sesionActual = sesion
-  iniciarColorPicker()
+  iniciarColorPickerEditor()
   await cargarLibretas()
   await cargarTodosSummary()
   await cargarPapeleraCuenta()
@@ -26,10 +25,16 @@ async function iniciarNotas(sesion) {
 
 // ==================== COLOR PICKER ====================
 
-function iniciarColorPicker() {
-  const swatches = document.getElementById('color-swatches')
-  if (!swatches) return
-  swatches.innerHTML = ''
+function iniciarColorPickerEditor() {
+  renderColorSwatches('color-swatches-editor', (color) => {
+    aplicarColorNota(color, true)
+  })
+}
+
+function renderColorSwatches(containerId, onSelect) {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  container.innerHTML = ''
 
   NOTE_COLORS.forEach(color => {
     const div = document.createElement('div')
@@ -38,39 +43,50 @@ function iniciarColorPicker() {
     div.dataset.colorId = color.id
     div.style.background = color.bg || '#ffffff'
     if (!color.bg) div.style.border = '1.5px solid var(--border2)'
-    div.onclick = () => aplicarColorNota(color)
-    swatches.appendChild(div)
+    div.onclick = () => onSelect(color)
+    container.appendChild(div)
   })
 }
 
-function toggleColorPicker() {
-  const popup = document.getElementById('color-picker-popup')
+function toggleColorPickerEditor() {
+  const popup = document.getElementById('color-picker-editor')
   if (!popup) return
-  popup.classList.toggle('open')
 
-  if (popup.classList.contains('open')) {
-    // Mark current color as selected
-    const currentColor = notaActual?.color_id || 'none'
-    document.querySelectorAll('.color-swatch').forEach(s => {
-      s.classList.toggle('selected', s.dataset.colorId === currentColor)
-    })
-    // Close on outside click
+  const isOpen = popup.classList.contains('open')
+  cerrarTodosLosColorPickers()
+
+  if (!isOpen) {
+    popup.classList.add('open')
+    actualizarSwatchesSeleccionados('color-swatches-editor', notaActual?.color_id || 'none')
     setTimeout(() => {
-      document.addEventListener('click', cerrarColorPickerFuera)
+      document.addEventListener('click', cerrarColorPickerFueraEditor)
     }, 100)
   }
 }
 
-function cerrarColorPickerFuera(e) {
-  const popup = document.getElementById('color-picker-popup')
+function cerrarColorPickerFueraEditor(e) {
+  const popup = document.getElementById('color-picker-editor')
   const btn = document.getElementById('btn-color')
   if (popup && !popup.contains(e.target) && e.target !== btn) {
     popup.classList.remove('open')
-    document.removeEventListener('click', cerrarColorPickerFuera)
+    document.removeEventListener('click', cerrarColorPickerFueraEditor)
   }
 }
 
-async function aplicarColorNota(color) {
+function cerrarTodosLosColorPickers() {
+  document.querySelectorAll('.color-picker-popup').forEach(p => p.classList.remove('open'))
+  document.removeEventListener('click', cerrarColorPickerFueraEditor)
+}
+
+function actualizarSwatchesSeleccionados(containerId, colorId) {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  container.querySelectorAll('.color-swatch').forEach(s => {
+    s.classList.toggle('selected', s.dataset.colorId === colorId)
+  })
+}
+
+async function aplicarColorNota(color, fromEditor = false) {
   if (!notaActual) return
 
   const { error } = await db.from('notes')
@@ -81,17 +97,8 @@ async function aplicarColorNota(color) {
 
   notaActual.color_id = color.id
   aplicarColorEditor(color.bg)
+  cerrarTodosLosColorPickers()
 
-  // Update swatch selection
-  document.querySelectorAll('.color-swatch').forEach(s => {
-    s.classList.toggle('selected', s.dataset.colorId === color.id)
-  })
-
-  // Close picker
-  document.getElementById('color-picker-popup')?.classList.remove('open')
-  document.removeEventListener('click', cerrarColorPickerFuera)
-
-  // Refresh note list to show color
   if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
@@ -121,7 +128,10 @@ async function cargarLibretas() {
   if (error) return console.error(error)
 
   const lista = document.getElementById('libretas-list')
+  const badge = document.getElementById('libretas-count')
   lista.innerHTML = ''
+
+  if (badge) badge.textContent = data.length
 
   if (!data.length) {
     lista.innerHTML = '<li class="libreta-item loading">No notebooks yet.</li>'
@@ -188,39 +198,18 @@ async function cargarTodosSummary() {
   const badge = document.getElementById('todos-total-badge')
   if (badge) {
     badge.textContent = `${pendientes} pending`
-    badge.className = 'todos-summary-total' + (pendientes > 0 ? ' warn' : '')
+    badge.className = 'sidebar-section-badge' + (pendientes > 0 ? ' warn' : '')
   }
 
   const colsList = document.getElementById('todos-cols-list')
   if (!colsList) return
   colsList.innerHTML = ''
 
-  const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
-
-  const colMap = {}
-  allCols.forEach(col => {
-    if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
-    colMap[col.title].ids.push(col.id)
-  })
-
-  allTodos.forEach(todo => {
-    Object.values(colMap).forEach(col => {
-      if (col.ids.includes(todo.kanban_column_id)) col.count++
-    })
-  })
-
-  const uniqueCols = Object.values(colMap)
-
-  if (!uniqueCols.length) {
-    colsList.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">No tasks yet.</div>'
-    return
-  }
-
-  // To-Do List section
-  const labelTodos = document.createElement('div')
-  labelTodos.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
-  labelTodos.textContent = 'To-Do List'
-  colsList.appendChild(labelTodos)
+  // ---- To-Do List section ----
+  const labelLista = document.createElement('div')
+  labelLista.style.cssText = 'padding:5px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
+  labelLista.textContent = 'To-Do List'
+  colsList.appendChild(labelLista)
 
   const pendientesRow = document.createElement('div')
   pendientesRow.className = 'todos-col-row'
@@ -233,42 +222,63 @@ async function cargarTodosSummary() {
     ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
   colsList.appendChild(pendientesRow)
 
-  const completadosRow = document.createElement('div')
-  completadosRow.className = 'todos-col-row'
-  completadosRow.innerHTML = `
+  const doneRow = document.createElement('div')
+  doneRow.className = 'todos-col-row'
+  doneRow.innerHTML = `
     <div class="todos-col-dot" style="background:#34c759;"></div>
     <span class="todos-col-name">Done</span>
     <span class="todos-col-count">${total - pendientes}</span>
   `
-  completadosRow.onclick = () => typeof esMobile === 'function' && esMobile()
+  doneRow.onclick = () => typeof esMobile === 'function' && esMobile()
     ? mobileNavSelect('todos') : abrirTodosGlobalModo('list')
-  colsList.appendChild(completadosRow)
+  colsList.appendChild(doneRow)
 
-  // Separator
+  // ---- Separator ----
   const sep = document.createElement('div')
-  sep.style.cssText = 'height:1px;background:var(--border);margin:6px 8px 2px;'
+  sep.style.cssText = 'height:1px;background:var(--border);margin:4px 8px;'
   colsList.appendChild(sep)
 
-  // Kanban section
+  // ---- Kanban section ----
   const labelKanban = document.createElement('div')
   labelKanban.style.cssText = 'padding:4px 10px 2px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;'
   labelKanban.textContent = 'Kanban'
   colsList.appendChild(labelKanban)
 
-  uniqueCols.forEach((col, i) => {
-    const row = document.createElement('div')
-    row.className = 'todos-col-row'
-    row.innerHTML = `
-      <div class="todos-col-dot" style="background:${colColors[i % colColors.length]};"></div>
-      <span class="todos-col-name">${col.title}</span>
-      <span class="todos-col-count">${col.count}</span>
-    `
-    row.onclick = () => typeof esMobile === 'function' && esMobile()
-      ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
-    colsList.appendChild(row)
+  // Unique columns by title
+  const colMap = {}
+  allCols.forEach(col => {
+    if (!colMap[col.title]) colMap[col.title] = { title: col.title, ids: [], count: 0 }
+    colMap[col.title].ids.push(col.id)
+  })
+  allTodos.forEach(todo => {
+    Object.values(colMap).forEach(col => {
+      if (col.ids.includes(todo.kanban_column_id)) col.count++
+    })
   })
 
-  // Re-patch mobile
+  const colColors = ['#ff9f0a', '#0071e3', '#34c759', '#af52de', '#ff3b30', '#5ac8fa']
+  const uniqueCols = Object.values(colMap)
+
+  if (!uniqueCols.length) {
+    const emptyEl = document.createElement('div')
+    emptyEl.style.cssText = 'padding:6px 10px;font-size:11px;color:var(--text3);text-align:center;'
+    emptyEl.textContent = 'No columns yet.'
+    colsList.appendChild(emptyEl)
+  } else {
+    uniqueCols.forEach((col, i) => {
+      const row = document.createElement('div')
+      row.className = 'todos-col-row'
+      row.innerHTML = `
+        <div class="todos-col-dot" style="background:${colColors[i % colColors.length]};"></div>
+        <span class="todos-col-name">${col.title}</span>
+        <span class="todos-col-count">${col.count}</span>
+      `
+      row.onclick = () => typeof esMobile === 'function' && esMobile()
+        ? mobileNavSelect('todos') : abrirTodosGlobalModo('kanban')
+      colsList.appendChild(row)
+    })
+  }
+
   if (typeof patchTodosSidebar === 'function') setTimeout(patchTodosSidebar, 100)
 }
 
@@ -301,6 +311,10 @@ async function abrirTodosGlobal() {
 }
 
 async function abrirTodosGlobalModo(modo) {
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+    return
+  }
   await abrirTodosGlobal()
   if (typeof setTodosMode === 'function') {
     setTimeout(() => setTodosMode(modo), 150)
@@ -313,14 +327,36 @@ async function cargarTodosGlobal() {
     .select('*')
     .order('sort_order')
 
-  kanbanColumns = cols || []
+  // Deduplicate columns by title — keep only unique titles
+  const seenTitles = new Set()
+  kanbanColumns = (cols || []).filter(c => {
+    if (seenTitles.has(c.title)) return false
+    seenTitles.add(c.title)
+    return true
+  })
 
   const { data: todos } = await db
     .from('todos')
     .select('*')
     .order('sort_order')
 
-  todosList = todos || []
+  // Deduplicate todos by id
+  const seenIds = new Set()
+  todosList = (todos || []).filter(t => {
+    if (seenIds.has(t.id)) return false
+    seenIds.add(t.id)
+    return true
+  })
+
+  // Assign todos without valid column to first column
+  if (kanbanColumns.length > 0) {
+    const validColIds = new Set(kanbanColumns.map(c => c.id))
+    todosList.forEach(t => {
+      if (!t.kanban_column_id || !validColIds.has(t.kanban_column_id)) {
+        t.kanban_column_id = kanbanColumns[0].id
+      }
+    })
+  }
 }
 
 // ==================== PAPELERA ====================
@@ -333,6 +369,10 @@ async function cargarPapeleraCuenta() {
 }
 
 function abrirPapelera() {
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('papelera')
+    return
+  }
   alert('Trash — coming soon.')
 }
 
@@ -370,23 +410,80 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
         <div class="nota-item-titulo">
           ${descifrar(nota.title_enc) || 'Untitled'}
         </div>
-        <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
-          onclick="event.stopPropagation(); togglePinNota('${nota.id}', this)"
-          title="${nota.is_pinned ? 'Unpin note' : 'Pin note'}">
-          📌
-        </button>
+        <div class="nota-item-actions">
+          <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
+            onclick="event.stopPropagation(); togglePinNota('${nota.id}')"
+            title="${nota.is_pinned ? 'Unpin' : 'Pin note'}">📌</button>
+          <div class="nota-color-wrap">
+            <button class="nota-color-btn ${bgColor ? 'colored' : ''}"
+              onclick="event.stopPropagation(); toggleColorPickerNota('${nota.id}', this)"
+              title="Note color">🎨</button>
+            <div class="color-picker-popup" id="color-picker-nota-${nota.id}">
+              <div class="color-picker-label">Note color</div>
+              <div class="color-swatches" id="color-swatches-nota-${nota.id}"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="nota-item-preview">
         ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
       </div>
       <div class="nota-item-fecha">${formatearFecha(nota.updated_at)}</div>
     `
+
+    // Init color swatches for this note item
+    const notaRef = nota
+    setTimeout(() => {
+      renderColorSwatches(`color-swatches-nota-${nota.id}`, (color) => {
+        aplicarColorNotaById(notaRef.id, color)
+      })
+      actualizarSwatchesSeleccionados(`color-swatches-nota-${nota.id}`, nota.color_id || 'none')
+    }, 0)
+
     li.onclick = () => abrirNota(nota, li)
     lista.appendChild(li)
   })
 }
 
-async function togglePinNota(notaId, btnEl) {
+function toggleColorPickerNota(notaId, btnEl) {
+  const popup = document.getElementById(`color-picker-nota-${notaId}`)
+  if (!popup) return
+
+  const isOpen = popup.classList.contains('open')
+  cerrarTodosLosColorPickers()
+
+  if (!isOpen) {
+    popup.classList.add('open')
+    actualizarSwatchesSeleccionados(`color-swatches-nota-${notaId}`, 'none')
+
+    setTimeout(() => {
+      function clickFuera(e) {
+        if (popup.contains(e.target) || e.target === btnEl) return
+        popup.classList.remove('open')
+        document.removeEventListener('click', clickFuera)
+      }
+      document.addEventListener('click', clickFuera)
+    }, 100)
+  }
+}
+
+async function aplicarColorNotaById(notaId, color) {
+  const { error } = await db.from('notes')
+    .update({ color_id: color.id })
+    .eq('id', notaId)
+
+  if (error) return console.error(error)
+
+  if (notaActual?.id === notaId) {
+    notaActual.color_id = color.id
+    aplicarColorEditor(color.bg)
+  }
+
+  cerrarTodosLosColorPickers()
+  if (libretaActual) await cargarNotas(libretaActual.id)
+}
+
+async function togglePinNota(notaId) {
   const { data: nota } = await db
     .from('notes')
     .select('is_pinned')
@@ -399,7 +496,6 @@ async function togglePinNota(notaId, btnEl) {
   await db.from('notes').update({ is_pinned: nuevoEstado }).eq('id', notaId)
 
   if (notaActual?.id === notaId) notaActual.is_pinned = nuevoEstado
-
   if (libretaActual) await cargarNotas(libretaActual.id)
 }
 
@@ -435,15 +531,12 @@ function abrirNota(nota, el) {
   document.getElementById('nota-contenido').innerHTML = descifrar(nota.content_enc) || ''
   document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(nota.updated_at)
 
-  // Apply color
   const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
   aplicarColorEditor(colorObj?.bg || null)
 
   historialSesion.push(document.getElementById('nota-contenido').innerHTML)
 
-  if (typeof esMobile === 'function' && esMobile()) {
-    mobileNavSelect('editor')
-  }
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('editor')
 
   if (window._autoguardadoInterval) clearInterval(window._autoguardadoInterval)
   window._autoguardadoInterval = setInterval(async () => {
@@ -497,55 +590,44 @@ async function eliminarNota() {
   await cargarPapeleraCuenta()
 }
 
-async function togglePin() {
-  if (!notaActual) return
-  const nuevoEstado = !notaActual.is_pinned
-  await db.from('notes').update({ is_pinned: nuevoEstado }).eq('id', notaActual.id)
-  notaActual.is_pinned = nuevoEstado
-  if (libretaActual) await cargarNotas(libretaActual.id)
-}
-
 function ordenarNotas(valor) {
   if (libretaActual) cargarNotas(libretaActual.id, valor)
 }
 
 // ==================== ATTACHMENTS ====================
 
-let attachmentsContext = null // 'note' | 'notebook'
+let attachmentsContext = null
 
 function abrirAttachmentsNota() {
   if (!notaActual) return alert('Select a note first.')
   attachmentsContext = 'note'
-  abrirAttachmentsScreen(`Note: ${descifrar(notaActual.title_enc) || 'Untitled'}`)
+  const titulo = `Note: ${descifrar(notaActual.title_enc) || 'Untitled'}`
+  abrirAttachmentsScreen(titulo)
 }
 
 function abrirAttachmentsLibreta() {
   if (!libretaActual) return alert('Select a notebook first.')
   attachmentsContext = 'notebook'
-  abrirAttachmentsScreen(`Notebook: ${descifrar(libretaActual.name_enc)}`)
+  const titulo = `Notebook: ${descifrar(libretaActual.name_enc)}`
+  abrirAttachmentsScreen(titulo)
 }
 
 function abrirAttachmentsScreen(titulo) {
-  const screen = document.getElementById('attachments-screen')
-  const titleEl = document.getElementById('attachments-title')
-  if (screen) screen.classList.add('open')
-  if (titleEl) titleEl.textContent = titulo
-
-  // On mobile show as dedicated view
   if (typeof esMobile === 'function' && esMobile()) {
+    document.getElementById('attachments-title').textContent = titulo
+    document.getElementById('attachments-screen').classList.add('open')
     mobileNavSelect('attachments')
     return
   }
+  document.getElementById('attachments-title').textContent = titulo
+  document.getElementById('attachments-screen').classList.add('open')
 }
 
 function cerrarAttachments() {
-  const screen = document.getElementById('attachments-screen')
-  if (screen) screen.classList.remove('open')
+  document.getElementById('attachments-screen')?.classList.remove('open')
   attachmentsContext = null
-
   if (typeof esMobile === 'function' && esMobile()) {
-    const vista = notaActual ? 'editor' : 'notas'
-    mobileNavSelect(vista)
+    mobileNavSelect(notaActual ? 'editor' : 'notas')
   }
 }
 
@@ -557,11 +639,6 @@ function subirAttachment() {
 
 function formatear(comando) {
   document.execCommand(comando, false, null)
-  document.getElementById('nota-contenido').focus()
-}
-
-function formatearBloque(tag) {
-  document.execCommand('formatBlock', false, tag)
   document.getElementById('nota-contenido').focus()
 }
 
@@ -599,22 +676,6 @@ function deshacer() {
 }
 
 // ==================== VERSIONES ====================
-
-async function guardarVersion() {
-  if (!notaActual) return
-  const titulo = document.getElementById('nota-titulo').value
-  const contenido = document.getElementById('nota-contenido').innerHTML
-
-  const { error } = await db.from('note_versions').insert({
-    note_id: notaActual.id,
-    title_enc: cifrar(titulo),
-    content_enc: cifrar(contenido),
-    edited_by: sesionActual.user.id
-  })
-
-  if (error) return alert('Error saving version.')
-  alert('Version saved.')
-}
 
 async function verVersiones() {
   if (!notaActual) return
@@ -667,17 +728,14 @@ function iniciarBusqueda() {
 
   const sidebarSearch = document.getElementById('sidebar-search')
   if (sidebarSearch) {
-    sidebarSearch.addEventListener('input', () => {
-      buscarGlobal(sidebarSearch.value)
-    })
+    sidebarSearch.addEventListener('input', () => buscarGlobal(sidebarSearch.value))
   }
 }
 
 async function buscarGlobal(termino) {
   if (!termino) {
     document.getElementById('libreta-nombre').textContent = libretaActual
-      ? descifrar(libretaActual.name_enc)
-      : 'Select a notebook'
+      ? descifrar(libretaActual.name_enc) : 'Select a notebook'
     if (libretaActual) cargarNotas(libretaActual.id)
     return
   }
@@ -716,12 +774,12 @@ async function buscarGlobal(termino) {
 
     li.innerHTML = `
       <div class="nota-item-header">
-        <div class="nota-item-titulo">
-          ${descifrar(nota.title_enc) || 'Untitled'}
+        <div class="nota-item-titulo">${descifrar(nota.title_enc) || 'Untitled'}</div>
+        <div class="nota-item-actions">
+          <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
+            onclick="event.stopPropagation(); togglePinNota('${nota.id}')"
+            title="${nota.is_pinned ? 'Unpin' : 'Pin'}">📌</button>
         </div>
-        <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
-          onclick="event.stopPropagation(); togglePinNota('${nota.id}', this)"
-          title="${nota.is_pinned ? 'Unpin' : 'Pin'}">📌</button>
       </div>
       <div class="nota-item-preview">
         ${descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...'}
@@ -761,4 +819,3 @@ function formatearFecha(fecha) {
 
 function abrirTodos() { iniciarTodos() }
 function abrirRecordatorio() { alert('Reminder — coming soon.') }
-function abrirColor() { toggleColorPicker() }

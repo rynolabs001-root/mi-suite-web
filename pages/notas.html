@@ -33,7 +33,11 @@
     <!-- NOTEBOOKS -->
     <div class="libretas-wrap">
       <div class="sidebar-section">
-        <span class="sidebar-section-icon" onclick="nuevaLibreta()" title="New notebook">📚</span>
+        <div class="sidebar-section-left">
+          <span class="sidebar-section-icon">📚</span>
+          <span class="sidebar-section-title">Notebooks</span>
+          <span class="sidebar-section-badge" id="libretas-count">0</span>
+        </div>
         <button class="sidebar-section-add" onclick="nuevaLibreta()" title="New notebook">+</button>
       </div>
       <ul class="libretas-list" id="libretas-list">
@@ -43,17 +47,16 @@
 
     <div class="sidebar-divider"></div>
 
-    <!-- TO-DO'S SUMMARY -->
+    <!-- TO-DO'S -->
     <div class="todos-summary-wrap">
       <div class="sidebar-section">
-        <span class="sidebar-section-icon" onclick="abrirTodosGlobal()" title="To-Do's">✅</span>
+        <div class="sidebar-section-left" style="cursor:pointer;" onclick="abrirTodosGlobalModo('list')">
+          <span class="sidebar-section-icon">✅</span>
+          <span class="sidebar-section-title">To-Do's</span>
+          <span class="sidebar-section-badge warn" id="todos-total-badge">0</span>
+        </div>
       </div>
       <div class="todos-summary-card">
-        <div class="todos-summary-header" id="todos-summary-header" onclick="abrirTodosGlobal()">
-          <div class="todos-summary-icon">✅</div>
-          <span class="todos-summary-label">To-Do's</span>
-          <span class="todos-summary-total" id="todos-total-badge">—</span>
-        </div>
         <div class="todos-cols-list" id="todos-cols-list">
           <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
         </div>
@@ -64,18 +67,14 @@
 
     <!-- TRASH -->
     <div class="papelera-wrap">
-      <div class="sidebar-section">
-        <span class="sidebar-section-icon" title="Trash">🗑</span>
-      </div>
       <div class="papelera-item" onclick="abrirPapelera()">
-        <span style="font-size:14px;">🗑</span>
-        <span class="papelera-label">Trash</span>
+        <span class="papelera-label">🗑 Trash</span>
         <span class="papelera-count" id="papelera-count">0</span>
       </div>
     </div>
 
     <div class="sidebar-footer">
-      <span class="sidebar-footer-label" id="theme-label">Dark Mode</span>
+      <span class="sidebar-footer-label">Dark Mode</span>
       <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
         <div class="theme-toggle-thumb"></div>
       </div>
@@ -96,12 +95,12 @@
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
-          <option value="title">Title</option>
+          <option value="title_enc">Title</option>
         </select>
       </div>
       <div class="notas-panel-subactions">
         <button class="btn btn-primary btn-small" onclick="nuevaNota()">+ Note</button>
-        <button class="panel-attach-btn" onclick="abrirAttachmentsLibreta()" id="btn-attach-libreta">
+        <button class="panel-attach-btn" onclick="abrirAttachmentsLibreta()">
           📎 Attachments
         </button>
       </div>
@@ -116,7 +115,7 @@
   <!-- ==================== EDITOR ==================== -->
   <section class="editor-panel" id="editor-panel">
 
-    <!-- Attachments screen (overlay) -->
+    <!-- Attachments overlay -->
     <div class="attachments-screen" id="attachments-screen">
       <div class="attachments-header">
         <span class="attachments-title" id="attachments-title">Attachments</span>
@@ -144,17 +143,16 @@
         <button onclick="highlight('yellow')" class="hl-yellow" title="Highlight yellow">A</button>
         <button onclick="highlight('pink')" class="hl-pink" title="Highlight pink">A</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="formatear('insertUnorderedList')" title="List">•</button>
-        <button onclick="formatearBloque('H2')" title="Heading">H</button>
+        <button onclick="formatear('insertUnorderedList')" title="Bullet list">•</button>
         <span class="toolbar-sep">|</span>
         <button onclick="deshacer()" title="Undo (Ctrl+Z)">↩</button>
         <button onclick="verVersiones()" title="Version history">🕐</button>
         <span class="toolbar-sep">|</span>
         <div class="color-btn-wrap">
-          <button onclick="toggleColorPicker()" title="Note color" id="btn-color">🎨</button>
-          <div class="color-picker-popup" id="color-picker-popup">
+          <button onclick="toggleColorPickerEditor()" title="Note color" id="btn-color">🎨</button>
+          <div class="color-picker-popup" id="color-picker-editor">
             <div class="color-picker-label">Note color</div>
-            <div class="color-swatches" id="color-swatches"></div>
+            <div class="color-swatches" id="color-swatches-editor"></div>
           </div>
         </div>
         <button onclick="eliminarNota()" title="Delete note" class="btn-danger-icon">🗑</button>
@@ -186,7 +184,7 @@
   <!-- ==================== TO-DO'S PANEL ==================== -->
   <section class="todos-panel" id="todos-panel">
     <div class="todos-header">
-      <span class="todos-title">To-Do's</span>
+      <span class="todos-title" id="todos-panel-title">To-Do's</span>
       <div class="todos-header-actions">
         <div class="mode-tabs">
           <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
@@ -207,7 +205,6 @@
 
 </div>
 
-<!-- Mobile nav (hidden — managed by mobile.js) -->
 <nav class="mobile-nav" id="mobile-nav" style="display:none;"></nav>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
