@@ -98,13 +98,6 @@ async function crearColumnasDefault() {
   kanbanColumns = data || []
 }
 
-// ==================== RENDER ====================
-
-function renderTodos() {
-  if (todosMode === 'list') renderLista()
-  else renderKanban()
-}
-
 // ==================== UTILIDADES FECHA ====================
 
 function fmtFecha(fecha) {
@@ -125,23 +118,31 @@ function diasVencidos(todo) {
   return diasEntre(todo.started_at, null) || 0
 }
 
+// ==================== RENDER ====================
+
+function renderTodos() {
+  if (todosMode === 'list') renderLista()
+  else renderKanban()
+}
+
 // ==================== LISTA ====================
 
 function renderLista() {
   const body = document.getElementById('todos-body')
   body.style.display = 'flex'
   body.style.flexDirection = 'column'
-  body.style.overflowY = 'auto'
+  body.style.overflowY = 'hidden'
   body.style.overflowX = 'hidden'
   body.style.padding = '0'
   body.innerHTML = ''
 
-  // Zona de tareas
+  // Zona superior 70%
   const zona = document.createElement('div')
   zona.id = 'todos-zona'
   zona.style.padding = '10px'
-  zona.style.flex = '1'
+  zona.style.flex = '7'
   zona.style.overflowY = 'auto'
+  zona.style.minHeight = '0'
   body.appendChild(zona)
 
   const pendientes = todosList
@@ -149,6 +150,8 @@ function renderLista() {
     .sort((a, b) => diasVencidos(b) - diasVencidos(a))
 
   const hechos = todosList.filter(t => t.status === 'done')
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+
   const todos = [...pendientes, ...hechos]
 
   if (!todos.length) {
@@ -186,8 +189,13 @@ function renderLista() {
     draggedTodo = null
   })
 
-  // Reporte incremental
-  body.appendChild(renderReporteLista())
+  // Zona inferior 30% — reporte
+  const reporteWrap = renderReporte('lista')
+  reporteWrap.style.flex = '3'
+  reporteWrap.style.minHeight = '0'
+  reporteWrap.style.display = 'flex'
+  reporteWrap.style.flexDirection = 'column'
+  body.appendChild(reporteWrap)
 }
 
 function crearTodoItem(todo) {
@@ -228,67 +236,6 @@ function crearTodoItem(todo) {
   return div
 }
 
-function renderReporteLista() {
-  const wrap = document.createElement('div')
-  wrap.className = 'reporte-wrap'
-
-  const isOpen = !reporteOculto
-  const items = todosList
-
-  wrap.innerHTML = `
-    <div class="reporte-header" onclick="toggleReporte()">
-      <div class="reporte-header-left">
-        <span class="reporte-titulo">Activity log</span>
-        <span class="reporte-count">${items.length}</span>
-        <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
-      </div>
-      <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
-    </div>
-    <div class="reporte-body ${isOpen ? 'open' : ''}" id="reporte-body-lista">
-      ${items.length ? '' : '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'}
-    </div>
-  `
-
-  const body = wrap.querySelector('#reporte-body-lista')
-  items.forEach(todo => {
-    const dias = todo.status === 'done'
-      ? diasEntre(todo.started_at, todo.completed_at)
-      : diasEntre(todo.started_at, null)
-
-    const diasLabel = dias !== null
-      ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`)
-      : '—'
-
-    const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
-
-    const row = document.createElement('div')
-    row.className = 'reporte-item'
-    row.innerHTML = `
-      <div class="reporte-dot ${todo.status}"></div>
-      <span class="reporte-texto">${descifrar(todo.text_enc)}</span>
-      <div class="reporte-fechas">
-        <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
-        <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
-      </div>
-      <span class="reporte-dias ${diasClass}">${diasLabel}</span>
-      <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
-    `
-    body.appendChild(row)
-  })
-
-  return wrap
-}
-
-function toggleReporte() {
-  reporteOculto = !reporteOculto
-  document.querySelectorAll('.reporte-body').forEach(body => {
-    body.classList.toggle('open', !reporteOculto)
-  })
-  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
-    toggle.classList.toggle('open', !reporteOculto)
-  })
-}
-
 // ==================== KANBAN ====================
 
 function renderKanban() {
@@ -296,16 +243,19 @@ function renderKanban() {
   body.style.display = 'flex'
   body.style.flexDirection = 'column'
   body.style.padding = '0'
+  body.style.overflowY = 'hidden'
   body.innerHTML = ''
 
+  // Zona superior 70% — columnas kanban
   const zona = document.createElement('div')
   zona.style.display = 'flex'
   zona.style.gap = '8px'
   zona.style.overflowX = 'auto'
-  zona.style.overflowY = 'hidden'
+  zona.style.overflowY = 'auto'
   zona.style.alignItems = 'flex-start'
   zona.style.padding = '10px'
-  zona.style.flex = '1'
+  zona.style.flex = '7'
+  zona.style.minHeight = '0'
   body.appendChild(zona)
 
   kanbanColumns.forEach(col => {
@@ -319,6 +269,7 @@ function renderKanban() {
     colDiv.dataset.colId = col.id
     colDiv.style.minWidth = '150px'
     colDiv.style.flex = '1'
+    colDiv.style.overflowY = 'auto'
 
     colDiv.innerHTML = `
       <div class="kanban-col-header">
@@ -397,62 +348,110 @@ function renderKanban() {
     zona.appendChild(addCol)
   }
 
-  // Reporte kanban
-  body.appendChild(renderReporteKanban())
+  // Zona inferior 30% — reporte
+  const reporteWrap = renderReporte('kanban')
+  reporteWrap.style.flex = '3'
+  reporteWrap.style.minHeight = '0'
+  reporteWrap.style.display = 'flex'
+  reporteWrap.style.flexDirection = 'column'
+  body.appendChild(reporteWrap)
 }
 
-function renderReporteKanban() {
+// ==================== REPORTE INCREMENTAL ====================
+
+function renderReporte(modo) {
   const wrap = document.createElement('div')
   wrap.className = 'reporte-wrap'
+  wrap.style.display = 'flex'
+  wrap.style.flexDirection = 'column'
+  wrap.style.minHeight = '0'
 
   const isOpen = !reporteOculto
-  const items = todosList
 
-  wrap.innerHTML = `
-    <div class="reporte-header" onclick="toggleReporte()">
-      <div class="reporte-header-left">
-        <span class="reporte-titulo">Activity log</span>
-        <span class="reporte-count">${items.length}</span>
-        <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
-      </div>
-      <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
+  // Pendientes: más antiguos primero
+  const pendientes = todosList
+    .filter(t => t.status !== 'done')
+    .sort((a, b) => diasEntre(b.started_at, null) - diasEntre(a.started_at, null))
+
+  // Cerrados: más recientes primero
+  const cerrados = todosList
+    .filter(t => t.status === 'done')
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+
+  const items = [...pendientes, ...cerrados]
+
+  const header = document.createElement('div')
+  header.className = 'reporte-header'
+  header.onclick = toggleReporte
+  header.innerHTML = `
+    <div class="reporte-header-left">
+      <span class="reporte-titulo">Activity log</span>
+      <span class="reporte-count">${items.length}</span>
+      <span style="font-size:10px;color:var(--text3);">DD/MM/AAAA</span>
     </div>
-    <div class="reporte-body ${isOpen ? 'open' : ''}" id="reporte-body-kanban">
-      ${items.length ? '' : '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'}
-    </div>
+    <span class="reporte-toggle ${isOpen ? 'open' : ''}">▾</span>
   `
+  wrap.appendChild(header)
 
-  const body = wrap.querySelector('#reporte-body-kanban')
-  items.forEach(todo => {
-    const col = kanbanColumns.find(c => c.id === todo.kanban_column_id)
-    const dias = diasEntre(todo.started_at, todo.completed_at || null)
-    const diasLabel = dias !== null
-      ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`)
-      : '—'
-    const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
+  const bodyEl = document.createElement('div')
+  bodyEl.className = `reporte-body ${isOpen ? 'open' : ''}`
+  bodyEl.id = `reporte-body-${modo}`
+  bodyEl.style.overflowY = 'auto'
+  bodyEl.style.flex = '1'
+  bodyEl.style.minHeight = '0'
 
-    const row = document.createElement('div')
-    row.className = 'reporte-item'
-    row.innerHTML = `
-      <div class="reporte-dot ${todo.status}"></div>
-      <div style="flex:1;min-width:0;">
-        <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
-        <div style="font-size:10px;color:var(--text3);">${col?.title || '—'}</div>
-      </div>
-      <div class="reporte-fechas">
-        <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
-        <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
-      </div>
-      <span class="reporte-dias ${diasClass}">${diasLabel}</span>
-      <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
-    `
-    body.appendChild(row)
-  })
+  if (!items.length) {
+    bodyEl.innerHTML = '<p style="font-size:12px;color:var(--text3);text-align:center;padding:12px;">No activity yet.</p>'
+  } else {
+    items.forEach(todo => {
+      const col = kanbanColumns.find(c => c.id === todo.kanban_column_id)
+      const dias = todo.status === 'done'
+        ? diasEntre(todo.started_at, todo.completed_at)
+        : diasEntre(todo.started_at, null)
 
+      const diasLabel = dias !== null
+        ? (todo.status === 'done' ? `${dias}d` : `${dias}d open`)
+        : '—'
+
+      const diasClass = todo.status === 'done' ? 'ok' : (dias > 7 ? 'vencido' : '')
+
+      const row = document.createElement('div')
+      row.className = 'reporte-item'
+      row.innerHTML = `
+        <div class="reporte-dot ${todo.status}"></div>
+        <div style="flex:1;min-width:0;">
+          <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
+          ${modo === 'kanban' && col ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>` : ''}
+        </div>
+        <div class="reporte-fechas">
+          <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
+          <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
+        </div>
+        <span class="reporte-dias ${diasClass}">${diasLabel}</span>
+        <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
+      `
+      bodyEl.appendChild(row)
+    })
+  }
+
+  wrap.appendChild(bodyEl)
   return wrap
 }
 
-// ==================== CARD EXPANDIDA ====================
+function toggleReporte() {
+  reporteOculto = !reporteOculto
+  document.querySelectorAll('.reporte-body').forEach(body => {
+    body.classList.toggle('open', !reporteOculto)
+    if (!reporteOculto) {
+      body.style.maxHeight = ''
+    }
+  })
+  document.querySelectorAll('.reporte-toggle').forEach(toggle => {
+    toggle.classList.toggle('open', !reporteOculto)
+  })
+}
+
+// ==================== CARD KANBAN ====================
 
 function crearKanbanCard(todo, colId) {
   const card = document.createElement('div')
@@ -464,9 +463,7 @@ function crearKanbanCard(todo, colId) {
   card.innerHTML = `
     <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
     ${todo.due_date ? `<div class="kanban-card-date">${fmtFecha(todo.due_date)}</div>` : ''}
-    <div style="font-size:10px;color:var(--text3);margin-top:3px;">
-      ${fmtFecha(todo.started_at)}
-    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:3px;">${fmtFecha(todo.started_at)}</div>
   `
 
   card.addEventListener('dragstart', e => {
@@ -546,12 +543,6 @@ function cerrarCardExpandida(cardEl, todo) {
   }
   _expandedCard = null
   _expandedTodo = null
-}
-
-async function cambiarColumnaKanban(todoId, colId) {
-  await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
-  const todo = todosList.find(t => t.id === todoId)
-  if (todo) todo.kanban_column_id = colId
 }
 
 // ==================== DRAG HELPERS ====================
