@@ -3,7 +3,7 @@ let todosMode = 'list'
 let kanbanColumns = []
 let todosList = []
 let draggedTodo = null
-let draggedColumn = null
+let dragOverTodo = null
 
 // ==================== INICIAR ====================
 
@@ -14,11 +14,7 @@ async function iniciarTodos() {
   }
 
   todosPanel = document.getElementById('todos-panel')
-
-  if (!todosPanel) {
-    console.error('todos-panel element not found')
-    return
-  }
+  if (!todosPanel) return
 
   const visible = todosPanel.style.display === 'flex'
 
@@ -27,12 +23,28 @@ async function iniciarTodos() {
     return
   }
 
-    todosPanel.style.display = 'flex'
-    document.getElementById('resizer-3').style.display = 'block'
-    document.querySelector('.notas-layout').style.gridTemplateColumns = ''
+  const resizer3 = document.getElementById('resizer-3')
+  todosPanel.style.display = 'flex'
+  todosPanel.style.flex = 'none'
+  todosPanel.style.width = '300px'
+  if (resizer3) resizer3.style.display = 'block'
 
   await cargarTodos()
   renderTodos()
+}
+
+function cerrarTodos() {
+  if (!todosPanel) return
+  todosPanel.style.display = 'none'
+  const resizer3 = document.getElementById('resizer-3')
+  if (resizer3) resizer3.style.display = 'none'
+
+  // Editor ocupa todo el espacio disponible
+  const editor = document.getElementById('editor-panel')
+  if (editor) {
+    editor.style.flex = '1'
+    editor.style.width = ''
+  }
 }
 
 // ==================== CARGAR ====================
@@ -67,7 +79,6 @@ async function crearColumnasDefault() {
     sort_order: i,
     created_by: sesionActual.user.id
   }))
-
   const { data } = await db.from('kanban_columns').insert(inserts).select()
   kanbanColumns = data || []
 }
@@ -82,6 +93,10 @@ function renderTodos() {
 // ---- LISTA ----
 function renderLista() {
   const body = document.getElementById('todos-body')
+  body.style.display = 'block'
+  body.style.overflowY = 'auto'
+  body.style.overflowX = 'hidden'
+
   const pendientes = todosList.filter(t => t.status !== 'done')
   const hechos = todosList.filter(t => t.status === 'done')
   const todos = [...pendientes, ...hechos]
@@ -89,56 +104,82 @@ function renderLista() {
   body.innerHTML = todos.length ? '' : '<p style="color:var(--text3);font-size:13px;text-align:center;padding:1rem;">No tasks yet.</p>'
 
   todos.forEach(todo => {
-    const div = document.createElement('div')
-    div.className = 'todo-item'
-    div.draggable = true
-    div.dataset.id = todo.id
-    div.innerHTML = `
-      <div class="todo-check ${todo.status === 'done' ? 'done' : ''}"
-        onclick="toggleTodoStatus('${todo.id}')"></div>
-      <div style="flex:1">
-        <div class="todo-text ${todo.status === 'done' ? 'done' : ''}"
-          contenteditable="true"
-          onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
-          ${descifrar(todo.text_enc)}
-        </div>
-        ${todo.due_date ? `<div class="todo-date">${formatearFecha(todo.due_date)}</div>` : ''}
-      </div>
-      <button onclick="eliminarTodo('${todo.id}')"
-        style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px 4px;">✕</button>
-    `
-    div.addEventListener('dragstart', () => draggedTodo = todo.id)
-    div.addEventListener('dragover', e => e.preventDefault())
-    div.addEventListener('drop', () => reordenarTodo(todo.id))
+    const div = crearTodoItem(todo)
     body.appendChild(div)
   })
 }
-// ---- cerrar ----
-function cerrarTodos() {
-  todosPanel.style.display = 'none'
-  const r3 = document.getElementById('resizer-3')
-  if (r3) r3.style.display = 'none'
+
+function crearTodoItem(todo) {
+  const div = document.createElement('div')
+  div.className = 'todo-item'
+  div.draggable = true
+  div.dataset.id = todo.id
+  div.innerHTML = `
+    <div class="todo-check ${todo.status === 'done' ? 'done' : ''}"
+      onclick="toggleTodoStatus('${todo.id}')"></div>
+    <div style="flex:1">
+      <div class="todo-text ${todo.status === 'done' ? 'done' : ''}"
+        contenteditable="true"
+        onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
+        ${descifrar(todo.text_enc)}
+      </div>
+      ${todo.due_date ? `<div class="todo-date">${formatearFecha(todo.due_date)}</div>` : ''}
+    </div>
+    <button onclick="eliminarTodo('${todo.id}')"
+      style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;flex-shrink:0;">✕</button>
+  `
+
+  div.addEventListener('dragstart', e => {
+    draggedTodo = todo.id
+    e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => div.style.opacity = '0.4', 0)
+  })
+
+  div.addEventListener('dragend', () => {
+    div.style.opacity = '1'
+    draggedTodo = null
+    dragOverTodo = null
+  })
+
+  div.addEventListener('dragover', e => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    dragOverTodo = todo.id
+    document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'))
+    div.classList.add('drag-over')
+  })
+
+  div.addEventListener('drop', e => {
+    e.preventDefault()
+    if (draggedTodo && draggedTodo !== todo.id) {
+      reordenarTodo(todo.id)
+    }
+  })
+
+  return div
 }
 
 // ---- KANBAN ----
 function renderKanban() {
   const body = document.getElementById('todos-body')
-  body.innerHTML = ''
-  body.style.padding = '10px'
-  body.style.display = 'grid'
-  body.style.gridTemplateColumns = `repeat(${kanbanColumns.length}, minmax(140px, 1fr))`
+  body.style.display = 'flex'
   body.style.gap = '8px'
   body.style.overflowX = 'auto'
+  body.style.overflowY = 'hidden'
+  body.style.alignItems = 'flex-start'
+  body.innerHTML = ''
 
   kanbanColumns.forEach(col => {
-    const items = todosList.filter(t => t.kanban_column_id === col.id)
-    const esOwner = notaActual.author_id === sesionActual.user.id
+    const items = todosList
+      .filter(t => t.kanban_column_id === col.id)
+      .sort((a, b) => a.sort_order - b.sort_order)
 
+    const esOwner = notaActual.author_id === sesionActual.user.id
     const colDiv = document.createElement('div')
     colDiv.className = 'kanban-col'
     colDiv.dataset.colId = col.id
-    colDiv.addEventListener('dragover', e => e.preventDefault())
-    colDiv.addEventListener('drop', () => moverAColumna(col.id))
+    colDiv.style.minWidth = '160px'
+    colDiv.style.flex = '1'
 
     colDiv.innerHTML = `
       <div class="kanban-col-header">
@@ -152,19 +193,28 @@ function renderKanban() {
       </div>
     `
 
+    // Drop zone para columna vacía
+    colDiv.addEventListener('dragover', e => {
+      e.preventDefault()
+      colDiv.classList.add('drag-over-col')
+    })
+
+    colDiv.addEventListener('dragleave', e => {
+      if (!colDiv.contains(e.relatedTarget)) {
+        colDiv.classList.remove('drag-over-col')
+      }
+    })
+
+    colDiv.addEventListener('drop', e => {
+      e.preventDefault()
+      colDiv.classList.remove('drag-over-col')
+      if (draggedTodo) {
+        moverAColumnaAlFinal(col.id)
+      }
+    })
+
     items.forEach(todo => {
-      const card = document.createElement('div')
-      card.className = 'kanban-card'
-      card.draggable = true
-      card.dataset.id = todo.id
-      card.innerHTML = `
-        <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
-        ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
-      `
-      card.addEventListener('dragstart', () => draggedTodo = todo.id)
-      card.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation() })
-      card.addEventListener('drop', e => { e.stopPropagation(); reordenarEnColumna(todo.id, col.id) })
-      card.addEventListener('click', () => abrirTodoCard(todo, card))
+      const card = crearKanbanCard(todo, col.id)
       colDiv.appendChild(card)
     })
 
@@ -186,6 +236,112 @@ function renderKanban() {
   }
 }
 
+function crearKanbanCard(todo, colId) {
+  const card = document.createElement('div')
+  card.className = 'kanban-card'
+  card.draggable = true
+  card.dataset.id = todo.id
+  card.dataset.colId = colId
+  card.innerHTML = `
+    <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
+    ${todo.due_date ? `<div class="kanban-card-date">${formatearFecha(todo.due_date)}</div>` : ''}
+  `
+
+  card.addEventListener('dragstart', e => {
+    draggedTodo = todo.id
+    e.dataTransfer.effectAllowed = 'move'
+    setTimeout(() => card.style.opacity = '0.4', 0)
+  })
+
+  card.addEventListener('dragend', () => {
+    card.style.opacity = '1'
+    draggedTodo = null
+    dragOverTodo = null
+    document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('drag-over'))
+  })
+
+  card.addEventListener('dragover', e => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'move'
+    document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('drag-over'))
+    card.classList.add('drag-over')
+    dragOverTodo = todo.id
+  })
+
+  card.addEventListener('drop', e => {
+    e.preventDefault()
+    e.stopPropagation()
+    card.classList.remove('drag-over')
+    if (draggedTodo && draggedTodo !== todo.id) {
+      insertarAntesDeCard(draggedTodo, todo.id, colId)
+    }
+  })
+
+  card.addEventListener('click', () => abrirTodoCard(todo, card))
+
+  return card
+}
+
+// ==================== DRAG AND DROP ====================
+
+async function reordenarTodo(targetId) {
+  if (!draggedTodo || draggedTodo === targetId) return
+  const fromIdx = todosList.findIndex(t => t.id === draggedTodo)
+  const toIdx = todosList.findIndex(t => t.id === targetId)
+  if (fromIdx === -1 || toIdx === -1) return
+  const [moved] = todosList.splice(fromIdx, 1)
+  todosList.splice(toIdx, 0, moved)
+  todosList.forEach((t, i) => t.sort_order = i)
+  document.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'))
+  renderTodos()
+  await Promise.all(todosList.map(t =>
+    db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)
+  ))
+}
+
+async function insertarAntesDeCard(draggedId, targetId, colId) {
+  const draggedIdx = todosList.findIndex(t => t.id === draggedId)
+  const targetIdx = todosList.findIndex(t => t.id === targetId)
+  if (draggedIdx === -1 || targetIdx === -1) return
+
+  const dragged = todosList[draggedIdx]
+  dragged.kanban_column_id = colId
+
+  todosList.splice(draggedIdx, 1)
+  const newTargetIdx = todosList.findIndex(t => t.id === targetId)
+  todosList.splice(newTargetIdx, 0, dragged)
+
+  const colItems = todosList.filter(t => t.kanban_column_id === colId)
+  colItems.forEach((t, i) => t.sort_order = i)
+
+  renderTodos()
+
+  await Promise.all([
+    db.from('todos').update({ kanban_column_id: colId }).eq('id', draggedId),
+    ...colItems.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id))
+  ])
+}
+
+async function moverAColumnaAlFinal(colId) {
+  if (!draggedTodo) return
+  const todo = todosList.find(t => t.id === draggedTodo)
+  if (!todo || todo.kanban_column_id === colId) return
+
+  todo.kanban_column_id = colId
+  const colItems = todosList.filter(t => t.kanban_column_id === colId)
+  todo.sort_order = colItems.length - 1
+
+  renderTodos()
+
+  await db.from('todos').update({
+    kanban_column_id: colId,
+    sort_order: todo.sort_order
+  }).eq('id', draggedTodo)
+
+  draggedTodo = null
+}
+
 // ==================== ACCIONES LISTA ====================
 
 async function agregarTodo() {
@@ -194,13 +350,14 @@ async function agregarTodo() {
   if (!texto) return
 
   const colDefault = kanbanColumns[0]?.id || null
+  const maxOrder = todosList.length
 
   const { data } = await db.from('todos').insert({
     note_id: notaActual.id,
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: colDefault,
-    sort_order: todosList.length,
+    sort_order: maxOrder,
     created_by: sesionActual.user.id
   }).select().single()
 
@@ -221,9 +378,10 @@ async function toggleTodoStatus(id) {
 }
 
 async function actualizarTextoTodo(id, texto) {
-  await db.from('todos').update({ text_enc: cifrar(texto) }).eq('id', id)
+  const enc = cifrar(texto.trim())
+  await db.from('todos').update({ text_enc: enc }).eq('id', id)
   const todo = todosList.find(t => t.id === id)
-  if (todo) todo.text_enc = cifrar(texto)
+  if (todo) todo.text_enc = enc
 }
 
 async function eliminarTodo(id) {
@@ -246,48 +404,20 @@ async function eliminarTodo(id) {
   renderTodos()
 }
 
-async function reordenarTodo(targetId) {
-  if (!draggedTodo || draggedTodo === targetId) return
-  const fromIdx = todosList.findIndex(t => t.id === draggedTodo)
-  const toIdx = todosList.findIndex(t => t.id === targetId)
-  const [moved] = todosList.splice(fromIdx, 1)
-  todosList.splice(toIdx, 0, moved)
-  todosList.forEach((t, i) => t.sort_order = i)
-  await Promise.all(todosList.map(t => db.from('todos').update({ sort_order: t.sort_order }).eq('id', t.id)))
-  renderTodos()
-  draggedTodo = null
-}
-
 // ==================== ACCIONES KANBAN ====================
-
-async function moverAColumna(colId) {
-  if (!draggedTodo) return
-  await db.from('todos').update({ kanban_column_id: colId }).eq('id', draggedTodo)
-  const todo = todosList.find(t => t.id === draggedTodo)
-  if (todo) todo.kanban_column_id = colId
-  draggedTodo = null
-  renderTodos()
-}
-
-async function reordenarEnColumna(targetId, colId) {
-  if (!draggedTodo || draggedTodo === targetId) return
-  await db.from('todos').update({ kanban_column_id: colId }).eq('id', draggedTodo)
-  const todo = todosList.find(t => t.id === draggedTodo)
-  if (todo) todo.kanban_column_id = colId
-  draggedTodo = null
-  renderTodos()
-}
 
 async function agregarTodoEnColumna(colId) {
   const texto = prompt('Task name:')
   if (!texto) return
+
+  const colItems = todosList.filter(t => t.kanban_column_id === colId)
 
   const { data } = await db.from('todos').insert({
     note_id: notaActual.id,
     text_enc: cifrar(texto),
     status: 'pending',
     kanban_column_id: colId,
-    sort_order: todosList.filter(t => t.kanban_column_id === colId).length,
+    sort_order: colItems.length,
     created_by: sesionActual.user.id
   }).select().single()
 
@@ -316,16 +446,20 @@ async function agregarColumna() {
 }
 
 async function renombrarColumna(id, titulo) {
-  await db.from('kanban_columns').update({ title: titulo }).eq('id', id)
+  const trimmed = titulo.trim()
+  if (!trimmed) return
+  await db.from('kanban_columns').update({ title: trimmed }).eq('id', id)
   const col = kanbanColumns.find(c => c.id === id)
-  if (col) col.title = titulo
+  if (col) col.title = trimmed
 }
 
 async function eliminarColumna(id) {
   if (kanbanColumns.length <= 1) return alert('You need at least one column.')
   if (!confirm('Delete this column? Tasks will move to the first column.')) return
 
-  const primeraCol = kanbanColumns[0].id
+  const primeraCol = kanbanColumns.find(c => c.id !== id)?.id
+  if (!primeraCol) return
+
   await db.from('todos').update({ kanban_column_id: primeraCol }).eq('kanban_column_id', id)
   await db.from('kanban_columns').delete().eq('id', id)
   kanbanColumns = kanbanColumns.filter(c => c.id !== id)
@@ -336,16 +470,23 @@ async function eliminarColumna(id) {
 // ==================== CARD EXPANDIDA ====================
 
 function abrirTodoCard(todo, cardEl) {
-  document.querySelectorAll('.kanban-card.expanded').forEach(c => c.classList.remove('expanded'))
+  document.querySelectorAll('.kanban-card.expanded').forEach(c => {
+    c.classList.remove('expanded')
+    c.innerHTML = `
+      <div class="kanban-card-text">${descifrar(c._todo?.text_enc || '')}</div>
+    `
+  })
+
+  cardEl._todo = todo
   cardEl.classList.add('expanded')
   cardEl.innerHTML = `
     <div contenteditable="true" class="kanban-card-edit"
       onblur="actualizarTextoTodo('${todo.id}', this.textContent)">
       ${descifrar(todo.text_enc)}
     </div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-      <select onchange="cambiarStatusTodo('${todo.id}', this.value)"
-        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);">
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+      <select onchange="cambiarColumnaKanban('${todo.id}', this.value)"
+        style="font-size:11px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:var(--font);flex:1;">
         ${kanbanColumns.map(c => `<option value="${c.id}" ${todo.kanban_column_id === c.id ? 'selected' : ''}>${c.title}</option>`).join('')}
       </select>
       <button onclick="eliminarTodo('${todo.id}')"
@@ -354,6 +495,7 @@ function abrirTodoCard(todo, cardEl) {
       </button>
     </div>
   `
+
   cardEl.querySelector('.kanban-card-edit').focus()
 
   setTimeout(() => {
@@ -367,7 +509,7 @@ function abrirTodoCard(todo, cardEl) {
   }, 100)
 }
 
-async function cambiarStatusTodo(todoId, colId) {
+async function cambiarColumnaKanban(todoId, colId) {
   await db.from('todos').update({ kanban_column_id: colId }).eq('id', todoId)
   const todo = todosList.find(t => t.id === todoId)
   if (todo) todo.kanban_column_id = colId
@@ -384,12 +526,13 @@ async function guardarVersionTodos() {
     sort_order: t.sort_order
   }))
 
-  await db.from('todos_versions').insert({
+  const { error } = await db.from('todos_versions').insert({
     note_id: notaActual.id,
-    snapshot: snapshot,
+    snapshot,
     saved_by: sesionActual.user.id
   })
 
+  if (error) return alert('Error saving version.')
   alert('To-Do version saved.')
 }
 
@@ -408,13 +551,11 @@ async function verVersionesTodos() {
 
   const idx = parseInt(sel) - 1
   if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
-
-  const version = data[idx]
   if (!confirm('Restore this version? Current tasks will be replaced.')) return
 
   await db.from('todos').delete().eq('note_id', notaActual.id)
 
-  const restores = version.snapshot.map(t => ({
+  const restores = data[idx].snapshot.map(t => ({
     note_id: notaActual.id,
     text_enc: cifrar(t.text),
     status: t.status,
@@ -435,7 +576,5 @@ function setTodosMode(mode) {
   todosMode = mode
   document.getElementById('tab-list').classList.toggle('active', mode === 'list')
   document.getElementById('tab-kanban').classList.toggle('active', mode === 'kanban')
-  const body = document.getElementById('todos-body')
-  body.style.display = mode === 'list' ? 'block' : 'grid'
   renderTodos()
 }

@@ -8,70 +8,60 @@ function configurarResizer(resizerId, panelIzqId, panelDerId) {
   const resizer = document.getElementById(resizerId)
   const panelIzq = document.getElementById(panelIzqId)
   const panelDer = document.getElementById(panelDerId)
-
   if (!resizer || !panelIzq || !panelDer) return
 
-  let startX, startWidthIzq, startWidthDer
+  let startX, startWidthIzq
 
-  resizer.addEventListener('mousedown', e => {
-    startX = e.clientX
+  function iniciarDrag(clientX) {
+    startX = clientX
     startWidthIzq = panelIzq.offsetWidth
-    startWidthDer = panelDer.offsetWidth
     resizer.classList.add('resizing')
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+  }
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-  })
-
-  // Touch support para mobile
-  resizer.addEventListener('touchstart', e => {
-    startX = e.touches[0].clientX
-    startWidthIzq = panelIzq.offsetWidth
-    startWidthDer = panelDer.offsetWidth
-    resizer.classList.add('resizing')
-
-    document.addEventListener('touchmove', onTouchMove)
-    document.addEventListener('touchend', onMouseUp)
-  })
-
-  function onMouseMove(e) {
-    const dx = e.clientX - startX
-    const newWidthIzq = startWidthIzq + dx
-
+  function moverDrag(clientX) {
+    const dx = clientX - startX
+    const newWidth = startWidthIzq + dx
     const minIzq = parseInt(getComputedStyle(panelIzq).minWidth) || 160
     const maxIzq = parseInt(getComputedStyle(panelIzq).maxWidth) || 600
     const minDer = parseInt(getComputedStyle(panelDer).minWidth) || 200
-
-    if (newWidthIzq < minIzq || newWidthIzq > maxIzq) return
-    if (startWidthDer - dx < minDer) return
-
-    panelIzq.style.width = newWidthIzq + 'px'
+    const espacioDisponible = panelIzq.offsetWidth + panelDer.offsetWidth
+    if (newWidth < minIzq || newWidth > maxIzq) return
+    if (espacioDisponible - newWidth < minDer) return
+    panelIzq.style.width = newWidth + 'px'
     panelIzq.style.flex = 'none'
   }
 
-  function onTouchMove(e) {
-    const dx = e.touches[0].clientX - startX
-    const newWidthIzq = startWidthIzq + dx
-    const minIzq = parseInt(getComputedStyle(panelIzq).minWidth) || 160
-    const maxIzq = parseInt(getComputedStyle(panelIzq).maxWidth) || 600
-    const minDer = parseInt(getComputedStyle(panelDer).minWidth) || 200
-    if (newWidthIzq < minIzq || newWidthIzq > maxIzq) return
-    if (startWidthDer - dx < minDer) return
-    panelIzq.style.width = newWidthIzq + 'px'
-    panelIzq.style.flex = 'none'
-  }
-
-  function onMouseUp() {
+  function terminarDrag() {
     resizer.classList.remove('resizing')
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
-    document.removeEventListener('touchmove', onTouchMove)
-    document.removeEventListener('touchend', onMouseUp)
   }
+
+  resizer.addEventListener('mousedown', e => {
+    iniciarDrag(e.clientX)
+    const onMove = e => moverDrag(e.clientX)
+    const onUp = () => {
+      terminarDrag()
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  })
+
+  resizer.addEventListener('touchstart', e => {
+    iniciarDrag(e.touches[0].clientX)
+    const onMove = e => moverDrag(e.touches[0].clientX)
+    const onUp = () => {
+      terminarDrag()
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onUp)
+    }
+    document.addEventListener('touchmove', onMove)
+    document.addEventListener('touchend', onUp)
+  })
 }
 
 document.addEventListener('DOMContentLoaded', iniciarResizers)

@@ -693,3 +693,18 @@ select {
 .resizer.resizing::after {
   background: var(--accent);
 }
+
+.todo-item.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0,113,227,0.2);
+}
+
+.kanban-card.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 -2px 0 var(--accent);
+}
+
+.kanban-col.drag-over-col {
+  background: var(--bg3);
+  border-color: var(--accent);
+}
