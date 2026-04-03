@@ -980,3 +980,34 @@ async function buscarGlobal(termino) {
     lista.appendChild(li)
   })
 }
+
+function abrirAttachments() {
+  if (!notaActual) return alert('Please select a note first.')
+  attNotaId = notaActual.id
+  const sel = window.getSelection()
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0)
+    const editor = document.getElementById('nota-contenido')
+    if (editor && editor.contains(range.commonAncestorContainer)) {
+      _attCursorRange = range.cloneRange()
+    }
+  }
+  document.getElementById('att-modal-title').textContent = 'Attachments'
+  document.getElementById('att-modal-subtitle').textContent = 'Note: ' + (descifrar(notaActual.title_enc) || 'Untitled')
+  document.getElementById('att-overlay').style.display = 'flex'
+  cargarAttachments()
+  actualizarStorageBar()
+}
+
+async function registrarActividad(accion) {
+  if (!notaActual) return
+  await db.from('note_activity').insert({
+    note_id: notaActual.id,
+    user_id: sesionActual.user.id,
+    action: accion
+  })
+}
+
+function ordenarNotas(valor) {
+  if (libretaActual) cargarNotas(libretaActual.id, valor)
+}
