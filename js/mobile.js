@@ -304,13 +304,13 @@ function restaurarDesktop() {
   const nav = document.querySelector('nav')
   if (nav) {
     nav.innerHTML = `
-      <strong>My Suite</strong>
-      <div class="nav-right">
-        <a href="../index.html">Home</a>
-        <a href="calendario.html">Calendar</a>
-        <a href="peliculas.html">Movies</a>
-        <a href="#" onclick="cerrarSesion()">Sign out</a>
-      </div>
+<strong>My Suite</strong>
+<div class="nav-right">
+  <a href="../index.html">Home</a>
+  <a href="calendario.html">Calendar</a>
+  <a href="peliculas.html">Movies</a>
+  <a href="#" onclick="cerrarSesion()">Sign out</a>
+</div>
     `
   }
 
