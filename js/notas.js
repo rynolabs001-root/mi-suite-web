@@ -1011,3 +1011,57 @@ async function registrarActividad(accion) {
 function ordenarNotas(valor) {
   if (libretaActual) cargarNotas(libretaActual.id, valor)
 }
+
+function atajosTeclado(e) {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'b') { e.preventDefault(); formatear('bold') }
+    if (e.key === 'i') { e.preventDefault(); formatear('italic') }
+    if (e.key === 'u') { e.preventDefault(); formatear('underline') }
+    if (e.key === 's') { e.preventDefault(); guardarNota() }
+    if (e.key === 'z') { e.preventDefault(); deshacer() }
+  }
+}
+
+function onContenidoChange() {
+  window._hayaCambios = true
+  const contenido = document.getElementById('nota-contenido').innerHTML
+  historialSesion.push(contenido)
+  if (historialSesion.length > 100) historialSesion.shift()
+}
+
+function formatear(comando) {
+  document.execCommand(comando, false, null)
+  document.getElementById('nota-contenido').focus()
+}
+
+function highlight(color) {
+  const sel = window.getSelection()
+  if (!sel.rangeCount || sel.isCollapsed) return
+  const range = sel.getRangeAt(0)
+  const mark = document.createElement('mark')
+  mark.className = color === 'yellow' ? 'hl-yellow' : 'hl-pink'
+  try { range.surroundContents(mark) } catch(e) {}
+  sel.removeAllRanges()
+}
+
+function deshacer() {
+  if (historialSesion.length < 2) return
+  historialSesion.pop()
+  document.getElementById('nota-contenido').innerHTML = historialSesion[historialSesion.length - 1]
+}
+
+async function verVersiones() {
+  if (!notaActual) return
+  const { data } = await db.from('note_versions').select('*')
+    .eq('note_id', notaActual.id).order('saved_at', { ascending: false })
+  if (!data?.length) return alert('No saved versions for this note.')
+  const lista = data.map((v, i) => (i+1) + '. ' + formatearFecha(v.saved_at)).join('\n')
+  const sel = prompt('Versions:\n' + lista + '\n\nEnter number to restore:')
+  if (!sel) return
+  const idx = parseInt(sel) - 1
+  if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
+  document.getElementById('nota-titulo').value = descifrar(data[idx].title_enc)
+  document.getElementById('nota-contenido').innerHTML = descifrar(data[idx].content_enc)
+  window._hayaCambios = true
+  alert('Version restored. Save to confirm.')
+}
