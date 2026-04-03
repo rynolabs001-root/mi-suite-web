@@ -963,8 +963,7 @@ function setTodosMode(mode) {
   renderTodos()
 }
 
-El archivo se cortó — le faltan las últimas funciones. Agrega esto al final de js/todos.js:
-javascriptasync function reabrirTodo(id) {
+async function reabrirTodo(id) {
   const todo = todosList.find(t => t.id === id)
   if (!todo) return
   await db.from('todos').update({ status: 'pending', completed_at: null }).eq('id', id)
