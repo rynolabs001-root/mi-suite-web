@@ -702,3 +702,339 @@ function formatearFecha(fecha) {
 
 function abrirTodos() { iniciarTodos() }
 function abrirRecordatorio() { alert('Reminder — coming soon.') }
+
+// ==================== ATTACHMENTS ====================
+
+const ATT_ALLOWED = ['jpg','jpeg','png','gif','webp','bmp','tif','tiff','pdf','docx','xlsx','zip']
+const ATT_BLOCKED = ['exe','bat','sh','cmd','msi','dmg','app','js','vbs','ps1','jar','com','scr','pif','reg']
+const ATT_IMAGES = ['jpg','jpeg','png','gif','webp','bmp','tif','tiff']
+const ATT_NOTEBOOK_MAX_KB = 100 * 1024 // 100 MB
+
+let attNotaId = null
+
+async function abrirAttachments() {
+  if (!notaActual) return alert('Please select a note first.')
+  attNotaId = notaActual.id
+  document.getElementById('att-modal-title').textContent = 'Attachments'
+  document.getElementById('att-modal-subtitle').textContent = `Note: ${descifrar(notaActual.title_enc) || 'Untitled'}`
+  document.getElementById('att-overlay').style.display = 'flex'
+  await cargarAttachments()
+  await actualizarStorageBar()
+}
+
+function cerrarAttModal(e) {
+  if (e && e.target !== document.getElementById('att-overlay')) return
+  document.getElementById('att-overlay').style.display = 'none'
+  attNotaId = null
+}
+
+async function cargarAttachments() {
+  const grid = document.getElementById('att-grid')
+  grid.innerHTML = '<div class="att-empty" style="grid-column:1/-1;">Loading...</div>'
+
+  const { data, error } = await db
+    .from('note_attachments')
+    .select('*')
+    .eq('note_id', attNotaId)
+    .eq('is_deleted', false)
+    .order('uploaded_at', { ascending: false })
+
+  if (error) { console.error(error); return }
+
+  grid.innerHTML = ''
+
+  if (!data.length) {
+    grid.innerHTML = '<div class="att-empty" style="grid-column:1/-1;">No attachments yet.</div>'
+    return
+  }
+
+  data.forEach(att => grid.appendChild(crearAttCard(att)))
+}
+
+function crearAttCard(att) {
+  const ext = att.filename.split('.').pop().toLowerCase()
+  const isImage = ATT_IMAGES.includes(ext)
+  const displayName = att.display_name || att.filename
+  const nameSinExt = displayName.includes('.')
+    ? displayName.substring(0, displayName.lastIndexOf('.'))
+    : displayName
+
+  const card = document.createElement('div')
+  card.className = 'att-file'
+  card.dataset.id = att.id
+
+  const preview = document.createElement('div')
+  preview.className = 'att-file-preview'
+
+  if (isImage) {
+    // Get public URL from Supabase storage
+    const { data: urlData } = db.storage.from('attachments').getPublicUrl(att.storage_path)
+    const img = document.createElement('img')
+    img.src = urlData.publicUrl
+    img.alt = displayName
+    img.onclick = e => { e.stopPropagation(); abrirLightbox(urlData.publicUrl, displayName) }
+    preview.appendChild(img)
+  } else {
+    preview.textContent = attIcono(ext)
+  }
+
+  const nameEl = document.createElement('div')
+  nameEl.className = 'att-file-name'
+  nameEl.textContent = nameSinExt
+  nameEl.title = 'Click to rename'
+  nameEl.contentEditable = true
+  nameEl.spellcheck = false
+  nameEl.onclick = e => e.stopPropagation()
+  nameEl.onblur = async () => {
+    const nuevoNombre = nameEl.textContent.trim()
+    if (!nuevoNombre || nuevoNombre === nameSinExt) return
+    // Keep original extension
+    const extOriginal = att.filename.split('.').pop()
+    const nuevoDisplay = `${nuevoNombre}.${extOriginal}`
+    await db.from('note_attachments').update({ display_name: nuevoDisplay }).eq('id', att.id)
+  }
+  nameEl.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); nameEl.blur() }
+    if (e.key === 'Escape') { nameEl.textContent = nameSinExt; nameEl.blur() }
+  }
+
+  const sizeEl = document.createElement('div')
+  sizeEl.className = 'att-file-size'
+  sizeEl.textContent = formatSize(att.size_kb)
+
+  const actions = document.createElement('div')
+  actions.className = 'att-file-actions'
+
+  const btnDownload = document.createElement('button')
+  btnDownload.className = 'att-file-btn'
+  btnDownload.textContent = '⬇'
+  btnDownload.title = 'Download'
+  btnDownload.onclick = async e => {
+    e.stopPropagation()
+    await descargarAttachment(att)
+  }
+
+  const btnDelete = document.createElement('button')
+  btnDelete.className = 'att-file-btn danger'
+  btnDelete.textContent = '🗑'
+  btnDelete.title = 'Delete'
+  btnDelete.onclick = async e => {
+    e.stopPropagation()
+    await eliminarAttachment(att, card)
+  }
+
+  actions.appendChild(btnDownload)
+  actions.appendChild(btnDelete)
+
+  card.appendChild(preview)
+  card.appendChild(nameEl)
+  card.appendChild(sizeEl)
+  card.appendChild(actions)
+
+  return card
+}
+
+function attIcono(ext) {
+  const map = {
+    pdf: '📄', docx: '📝', xlsx: '📊', zip: '🗜',
+    tif: '🖼', tiff: '🖼', bmp: '🖼'
+  }
+  return map[ext] || '📎'
+}
+
+function formatSize(kb) {
+  if (!kb) return ''
+  if (kb < 1024) return `${kb} KB`
+  return `${(kb / 1024).toFixed(1)} MB`
+}
+
+// ---- Upload ----
+
+function attDragOver(e) {
+  e.preventDefault()
+  document.getElementById('att-upload-zone').classList.add('dragover')
+}
+
+function attDragLeave(e) {
+  document.getElementById('att-upload-zone').classList.remove('dragover')
+}
+
+function attDrop(e) {
+  e.preventDefault()
+  document.getElementById('att-upload-zone').classList.remove('dragover')
+  const files = e.dataTransfer.files
+  if (files.length) attFilesSelected(files)
+}
+
+async function attFilesSelected(files) {
+  for (const file of files) {
+    await subirAttachment(file)
+  }
+  await cargarAttachments()
+  await actualizarStorageBar()
+}
+
+async function subirAttachment(file) {
+  const ext = file.name.split('.').pop().toLowerCase()
+
+  // Block executables
+  if (ATT_BLOCKED.includes(ext)) {
+    alert(`File type .${ext} is not allowed.`)
+    return
+  }
+
+  // Check allowed
+  if (!ATT_ALLOWED.includes(ext)) {
+    alert(`File type .${ext} is not supported.`)
+    return
+  }
+
+  // Check notebook storage limit
+  const usadoKb = await obtenerStorageUsado()
+  const fileKb = Math.ceil(file.size / 1024)
+  if (usadoKb + fileKb > ATT_NOTEBOOK_MAX_KB) {
+    alert(`Not enough storage. Used: ${formatSize(usadoKb)}, Available: ${formatSize(ATT_NOTEBOOK_MAX_KB - usadoKb)}`)
+    return
+  }
+
+  // Show progress
+  const progressWrap = document.getElementById('att-progress-wrap')
+  const progressName = document.getElementById('att-progress-name')
+  const progressFill = document.getElementById('att-progress-fill')
+  progressWrap.style.display = 'block'
+  progressName.textContent = `Uploading ${file.name}...`
+  progressFill.style.width = '10%'
+
+  const path = `${sesionActual.user.id}/${attNotaId}/${Date.now()}_${file.name}`
+
+  const { error: uploadError } = await db.storage
+    .from('attachments')
+    .upload(path, file, { upsert: false })
+
+  if (uploadError) {
+    progressWrap.style.display = 'none'
+    console.error(uploadError)
+    alert('Upload error: ' + uploadError.message)
+    return
+  }
+
+  progressFill.style.width = '80%'
+
+  const { error: dbError } = await db.from('note_attachments').insert({
+    note_id: attNotaId,
+    uploaded_by: sesionActual.user.id,
+    filename: file.name,
+    display_name: file.name,
+    storage_path: path,
+    file_type: file.type || ext,
+    size_kb: fileKb,
+    is_deleted: false
+  })
+
+  if (dbError) {
+    console.error(dbError)
+    alert('Error saving attachment: ' + dbError.message)
+  }
+
+  progressFill.style.width = '100%'
+  setTimeout(() => { progressWrap.style.display = 'none'; progressFill.style.width = '0%' }, 600)
+}
+
+// ---- Download ----
+
+async function descargarAttachment(att) {
+  const { data, error } = await db.storage
+    .from('attachments')
+    .download(att.storage_path)
+
+  if (error) { console.error(error); alert('Download error.'); return }
+
+  const url = URL.createObjectURL(data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = att.display_name || att.filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ---- Delete (soft) ----
+
+async function eliminarAttachment(att, cardEl) {
+  if (!confirm(`Move "${att.display_name || att.filename}" to trash? It will be available for 30 days.`)) return
+
+  const { error } = await db.from('note_attachments').update({
+    is_deleted: true,
+    deleted_at: new Date().toISOString()
+  }).eq('id', att.id)
+
+  if (error) { console.error(error); return }
+
+  cardEl.style.transition = 'opacity 0.3s, transform 0.3s'
+  cardEl.style.opacity = '0'
+  cardEl.style.transform = 'scale(0.9)'
+  setTimeout(() => {
+    cardEl.remove()
+    const grid = document.getElementById('att-grid')
+    if (!grid.querySelector('.att-file')) {
+      grid.innerHTML = '<div class="att-empty" style="grid-column:1/-1;">No attachments yet.</div>'
+    }
+    actualizarStorageBar()
+  }, 300)
+}
+
+// ---- Storage bar ----
+
+async function obtenerStorageUsado() {
+  // Get all non-deleted attachments for notes in same notebook
+  if (!notaActual || !libretaActual) return 0
+
+  const { data: notas } = await db
+    .from('notes')
+    .select('id')
+    .eq('notebook_id', libretaActual.id)
+
+  if (!notas?.length) return 0
+
+  const noteIds = notas.map(n => n.id)
+  const { data: atts } = await db
+    .from('note_attachments')
+    .select('size_kb')
+    .in('note_id', noteIds)
+    .eq('is_deleted', false)
+
+  return (atts || []).reduce((sum, a) => sum + (a.size_kb || 0), 0)
+}
+
+async function actualizarStorageBar() {
+  const usadoKb = await obtenerStorageUsado()
+  const pct = Math.min((usadoKb / ATT_NOTEBOOK_MAX_KB) * 100, 100)
+
+  const usedEl = document.getElementById('att-storage-used')
+  const pctEl = document.getElementById('att-storage-pct')
+  const fillEl = document.getElementById('att-storage-fill')
+
+  if (usedEl) usedEl.textContent = `${formatSize(usadoKb)} used`
+  if (pctEl) pctEl.textContent = `${pct.toFixed(1)}% of 100 MB`
+  if (fillEl) {
+    fillEl.style.width = `${pct}%`
+    fillEl.className = `att-storage-fill${pct > 90 ? ' danger' : pct > 70 ? ' warn' : ''}`
+  }
+}
+
+// ---- Lightbox ----
+
+function abrirLightbox(url, nombre) {
+  const lb = document.getElementById('att-lightbox')
+  const img = document.getElementById('att-lightbox-img')
+  if (!lb || !img) return
+  img.src = url
+  img.alt = nombre
+  lb.style.display = 'flex'
+}
+
+function cerrarLightbox() {
+  const lb = document.getElementById('att-lightbox')
+  if (lb) lb.style.display = 'none'
+  const img = document.getElementById('att-lightbox-img')
+  if (img) img.src = ''
+}

@@ -197,7 +197,7 @@
       <div class="editor-footer">
         <span id="nota-fecha" class="nota-fecha"></span>
         <div class="editor-footer-actions">
-          <button class="btn btn-small" onclick="abrirAttachmentsNota()">📎 Attachments</button>
+          <button class="btn btn-small" onclick="abrirAttachments()">📎 Attachments</button>
           <button class="btn btn-small" onclick="abrirRecordatorio()">⏰ Reminder</button>
           <button class="btn btn-primary btn-small" onclick="guardarNota()">Save</button>
         </div>
@@ -234,7 +234,71 @@
       <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
   </section>
+<!-- ==================== ATTACHMENTS MODAL ==================== -->
+  <div class="att-overlay" id="att-overlay" style="display:none;" onclick="cerrarAttModal(event)">
+    <div class="att-modal" onclick="event.stopPropagation()">
 
+      <div class="att-modal-header">
+        <div>
+          <div class="att-modal-title" id="att-modal-title">Attachments</div>
+          <div class="att-modal-subtitle" id="att-modal-subtitle">Note: —</div>
+        </div>
+        <button class="att-modal-close" onclick="cerrarAttModal()">✕</button>
+      </div>
+
+      <div class="att-modal-body">
+
+        <!-- Storage bar -->
+        <div class="att-storage-bar">
+          <div class="att-storage-info">
+            <span id="att-storage-used">0 MB used</span>
+            <span id="att-storage-pct">0% of 100 MB</span>
+          </div>
+          <div class="att-storage-track">
+            <div class="att-storage-fill" id="att-storage-fill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Upload progress (hidden by default) -->
+        <div id="att-progress-wrap" style="display:none;">
+          <div class="att-progress">
+            <div class="att-progress-name" id="att-progress-name">Uploading...</div>
+            <div class="att-progress-track">
+              <div class="att-progress-fill" id="att-progress-fill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload zone -->
+        <div class="att-upload-zone" id="att-upload-zone"
+          onclick="document.getElementById('att-file-input').click()"
+          ondragover="attDragOver(event)"
+          ondragleave="attDragLeave(event)"
+          ondrop="attDrop(event)">
+          <div class="att-upload-icon">📎</div>
+          <div class="att-upload-text">Click or drag files here</div>
+          <div class="att-upload-hint">jpg, jpeg, png, gif, webp, bmp, tif, pdf, docx, xlsx, zip · Max 100 MB total</div>
+        </div>
+
+        <input type="file" id="att-file-input" style="display:none;"
+          multiple
+          accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.pdf,.docx,.xlsx,.zip"
+          onchange="attFilesSelected(this.files)">
+
+        <!-- Files grid -->
+        <div class="att-grid" id="att-grid">
+          <div class="att-empty">No attachments yet.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Image lightbox -->
+  <div class="att-lightbox" id="att-lightbox" style="display:none;" onclick="cerrarLightbox()">
+    <button class="att-lightbox-close" onclick="cerrarLightbox()">✕</button>
+    <img id="att-lightbox-img" src="" alt="">
+  </div>
 </div>
 
 <nav class="mobile-nav" id="mobile-nav" style="display:none;"></nav>
