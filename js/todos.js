@@ -518,7 +518,7 @@ function renderReporte(modo) {
       const dias = terminal
         ? diasEntre(todo.started_at, todo.completed_at)
         : diasEntre(todo.started_at, null)
-      const diasLabel = dias !== null ? (terminal ? `${dias}d` : `${dias}d open`) : '—
+      const diasLabel = dias !== null ? (terminal ? `${dias}d` : `${dias}d open`) : '—'
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
