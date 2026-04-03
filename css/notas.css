@@ -1383,3 +1383,182 @@ select {
   .att-modal { max-width: 100%; border-radius: 16px 16px 0 0; max-height: 85vh; }
   .att-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); }
 }
+
+/* ==================== ATTACHMENT CHIPS ==================== */
+
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 99px;
+  padding: 2px 10px 2px 4px;
+  cursor: pointer;
+  vertical-align: middle;
+  margin: 0 2px;
+  user-select: none;
+  position: relative;
+  font-size: 12px;
+  max-width: 200px;
+  transition: border-color 0.15s;
+}
+
+.att-chip:hover { border-color: var(--accent); }
+
+.att-chip-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: var(--bg3);
+  overflow: hidden;
+}
+
+.att-chip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.att-chip-name {
+  font-size: 11px;
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+  font-family: var(--font);
+}
+
+/* Chip context menu */
+.att-chip-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg);
+  border: 0.5px solid var(--border2);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 300;
+  min-width: 150px;
+  overflow: hidden;
+  display: none;
+}
+
+.att-chip-menu.open { display: block; }
+
+.att-chip-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: var(--font);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.att-chip-menu-item:hover { background: var(--bg3); }
+.att-chip-menu-item.danger { color: var(--danger); }
+.att-chip-menu-item.danger:hover { background: rgba(255,59,48,0.08); }
+
+/* ==================== WELCOME PAGE ==================== */
+
+.welcome-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 40px;
+  min-width: 0;
+}
+
+.welcome-content {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  max-width: 860px;
+  width: 100%;
+}
+
+.welcome-img {
+  width: 420px;
+  max-width: 50%;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 24px rgba(0,0,0,0.08));
+}
+
+.welcome-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome-title {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -1.2px;
+  color: var(--text);
+  line-height: 1.1;
+  margin: 0 0 14px;
+  font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.welcome-subtitle {
+  font-size: 15px;
+  color: var(--text3);
+  line-height: 1.65;
+  margin: 0 0 28px;
+  font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 400;
+  max-width: 380px;
+}
+
+.welcome-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 99px;
+  border: 1px solid var(--border2);
+  font-size: 13px;
+  color: var(--text2);
+  cursor: pointer;
+  background: var(--bg2);
+  font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  transition: all 0.15s;
+}
+
+.welcome-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0,113,227,0.06);
+}
+
+@media (max-width: 768px) {
+  .welcome-panel { padding: 24px 20px; }
+  .welcome-content { flex-direction: column; gap: 24px; align-items: flex-start; }
+  .welcome-img { width: 100%; max-width: 100%; }
+  .welcome-title { font-size: 28px; }
+  .welcome-subtitle { font-size: 14px; max-width: 100%; }
+}

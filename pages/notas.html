@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Notes — My Suite</title>
+  <title>Workspace — My Suite</title>
   <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/notas.css">
 </head>
@@ -23,14 +23,12 @@
 
   <!-- ==================== SIDEBAR ==================== -->
   <aside class="sidebar" id="sidebar">
-
     <div class="sidebar-header">
       <input class="sidebar-search" id="sidebar-search"
         placeholder="🔍 Search notes..."
         oninput="buscarGlobal(this.value)">
     </div>
 
-    <!-- NOTEBOOKS -->
     <div class="libretas-wrap">
       <div style="display:flex;align-items:center;padding:6px 12px 3px;gap:6px;flex-shrink:0;">
         <span style="font-size:14px;">📚</span>
@@ -45,9 +43,7 @@
 
     <div class="sidebar-divider"></div>
 
-    <!-- TO-DO'S — clickable zone -->
     <div class="todos-summary-wrap">
-
       <div class="sidebar-zone" id="zone-todos" onclick="handleZoneTodos()">
         <div style="display:flex;align-items:center;gap:6px;padding:6px 12px 3px;">
           <span style="font-size:14px;">✅</span>
@@ -70,7 +66,6 @@
 
       <div class="sidebar-divider"></div>
 
-      <!-- KANBAN — clickable zone -->
       <div class="sidebar-zone" id="zone-kanban" onclick="handleZoneKanban()">
         <div style="display:flex;align-items:center;gap:6px;padding:6px 12px 3px;">
           <span style="font-size:14px;">📋</span>
@@ -81,12 +76,10 @@
           <div style="padding:8px 10px;font-size:11px;color:var(--text3);text-align:center;">Loading...</div>
         </div>
       </div>
-
     </div>
 
     <div class="sidebar-divider"></div>
 
-    <!-- TRASH -->
     <div class="papelera-wrap">
       <div class="papelera-item" onclick="handleZonePapelera()">
         <svg width="16" height="16" viewBox="0 0 22 22" fill="none" style="flex-shrink:0;">
@@ -107,19 +100,32 @@
         <div class="theme-toggle-thumb"></div>
       </div>
     </div>
-
   </aside>
 
   <div class="resizer" id="resizer-1"></div>
 
+  <!-- ==================== WELCOME PANEL ==================== -->
+  <section class="welcome-panel" id="welcome-panel">
+    <div class="welcome-content">
+      <img src="../img/rhino_welcome.webp" alt="My Suite" class="welcome-img">
+      <div class="welcome-text">
+        <h1 class="welcome-title">Built to move fast.</h1>
+        <p class="welcome-subtitle">Your workspace is ready. Notes, tasks, and pipelines — all in one place. Select a section from the left to get started.</p>
+        <div class="welcome-chips">
+          <span class="welcome-chip" onclick="document.querySelector('.libreta-item')?.click()">📚 Notebooks</span>
+          <span class="welcome-chip" onclick="handleZoneTodos()">✅ To-Do's</span>
+          <span class="welcome-chip" onclick="handleZoneKanban()">📋 Kanban</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ==================== NOTES PANEL ==================== -->
-  <section class="notas-panel" id="notas-panel">
+  <section class="notas-panel" id="notas-panel" style="display:none;">
     <div class="notas-panel-header">
       <span class="notas-panel-title" id="libreta-nombre">Select a notebook</span>
       <div class="notas-panel-actions">
-        <input type="text" id="buscar-notas"
-          placeholder="Search in notebook..."
-          class="input-buscar">
+        <input type="text" id="buscar-notas" placeholder="Search..." class="input-buscar">
         <select id="ordenar-notas" onchange="ordenarNotas(this.value)">
           <option value="updated_at">Last modified</option>
           <option value="created_at">Date created</option>
@@ -136,11 +142,10 @@
     </ul>
   </section>
 
-  <div class="resizer" id="resizer-2"></div>
+  <div class="resizer" id="resizer-2" style="display:none;"></div>
 
   <!-- ==================== EDITOR ==================== -->
-  <section class="editor-panel" id="editor-panel">
-
+  <section class="editor-panel" id="editor-panel" style="display:none;">
     <div class="attachments-screen" id="attachments-screen">
       <div class="attachments-header">
         <span class="attachments-title" id="attachments-title">Attachments</span>
@@ -160,19 +165,16 @@
     </div>
 
     <div class="editor-contenido" id="editor-contenido" style="display:none;">
-
-      <!-- Toolbar WITHOUT color picker icon -->
       <div class="editor-toolbar">
-        <button onclick="formatear('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
-        <button onclick="formatear('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
-        <button onclick="formatear('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
+        <button onclick="formatear('bold')" title="Bold"><b>B</b></button>
+        <button onclick="formatear('italic')" title="Italic"><i>I</i></button>
+        <button onclick="formatear('underline')" title="Underline"><u>U</u></button>
         <button onclick="highlight('yellow')" class="hl-yellow" title="Highlight yellow">A</button>
         <button onclick="highlight('pink')" class="hl-pink" title="Highlight pink">A</button>
         <span class="toolbar-sep">|</span>
         <button onclick="formatear('insertUnorderedList')" title="Bullet list">•</button>
         <span class="toolbar-sep">|</span>
-        <button onclick="deshacer()" title="Undo (Ctrl+Z)">↩</button>
-        <button onclick="verVersiones()" title="Version history">🕐</button>
+        <button onclick="deshacer()" title="Undo">↩</button>
         <span class="toolbar-sep">|</span>
         <button class="btn-trash-svg" onclick="eliminarNota()" title="Delete note">
           <svg width="16" height="16" viewBox="0 0 22 22" fill="none">
@@ -202,27 +204,19 @@
           <button class="btn btn-primary btn-small" onclick="guardarNota()">Save</button>
         </div>
       </div>
-
     </div>
   </section>
 
   <div class="resizer" id="resizer-3" style="display:none;"></div>
 
   <!-- ==================== TO-DO'S PANEL ==================== -->
-  <section class="todos-panel" id="todos-panel">
+  <section class="todos-panel" id="todos-panel" style="display:none;">
     <div class="todos-header">
       <span class="todos-title" id="todos-panel-title">To-Do's</span>
       <div class="todos-header-actions">
         <div class="mode-tabs">
           <button class="mode-tab active" id="tab-list" onclick="setTodosMode('list')">List</button>
           <button class="mode-tab" id="tab-kanban" onclick="setTodosMode('kanban')">Kanban</button>
-        </div>
-        <div class="todos-icon-btns">
-          <button onclick="refreshClosed()" title="Archive closed cards"
-            style="background:rgba(52,199,89,0.12);border:none;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600;color:#1a7a35;cursor:pointer;font-family:var(--font);">
-            🔄
-          </button>
-          <button onclick="verVersionesTodos()" title="Version history" class="todos-icon-btn">🕐</button>
         </div>
       </div>
     </div>
@@ -234,10 +228,10 @@
       <button class="todo-add-btn" onclick="agregarTodo()">+</button>
     </div>
   </section>
-<!-- ==================== ATTACHMENTS MODAL ==================== -->
+
+  <!-- ==================== ATTACHMENTS MODAL ==================== -->
   <div class="att-overlay" id="att-overlay" style="display:none;" onclick="cerrarAttModal(event)">
     <div class="att-modal" onclick="event.stopPropagation()">
-
       <div class="att-modal-header">
         <div>
           <div class="att-modal-title" id="att-modal-title">Attachments</div>
@@ -245,10 +239,7 @@
         </div>
         <button class="att-modal-close" onclick="cerrarAttModal()">✕</button>
       </div>
-
       <div class="att-modal-body">
-
-        <!-- Storage bar -->
         <div class="att-storage-bar">
           <div class="att-storage-info">
             <span id="att-storage-used">0 MB used</span>
@@ -258,8 +249,6 @@
             <div class="att-storage-fill" id="att-storage-fill" style="width:0%"></div>
           </div>
         </div>
-
-        <!-- Upload progress (hidden by default) -->
         <div id="att-progress-wrap" style="display:none;">
           <div class="att-progress">
             <div class="att-progress-name" id="att-progress-name">Uploading...</div>
@@ -268,8 +257,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Upload zone -->
         <div class="att-upload-zone" id="att-upload-zone"
           onclick="document.getElementById('att-file-input').click()"
           ondragover="attDragOver(event)"
@@ -277,28 +264,23 @@
           ondrop="attDrop(event)">
           <div class="att-upload-icon">📎</div>
           <div class="att-upload-text">Click or drag files here</div>
-          <div class="att-upload-hint">jpg, jpeg, png, gif, webp, bmp, tif, pdf, docx, xlsx, zip · Max 100 MB total</div>
+          <div class="att-upload-hint">jpg, png, gif, webp, pdf, docx, xlsx, zip · Max 100 MB</div>
         </div>
-
-        <input type="file" id="att-file-input" style="display:none;"
-          multiple
+        <input type="file" id="att-file-input" style="display:none;" multiple
           accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.pdf,.docx,.xlsx,.zip"
           onchange="attFilesSelected(this.files)">
-
-        <!-- Files grid -->
         <div class="att-grid" id="att-grid">
           <div class="att-empty">No attachments yet.</div>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- Image lightbox -->
   <div class="att-lightbox" id="att-lightbox" style="display:none;" onclick="cerrarLightbox()">
     <button class="att-lightbox-close" onclick="cerrarLightbox()">✕</button>
     <img id="att-lightbox-img" src="" alt="">
   </div>
+
 </div>
 
 <nav class="mobile-nav" id="mobile-nav" style="display:none;"></nav>
@@ -310,15 +292,66 @@
 <script src="../js/resizer.js"></script>
 <script src="../js/mobile.js"></script>
 <script>
-  // Zone handlers — archive closed before navigating
+
+// ==================== LAYOUT DINAMICO ====================
+
+let vistaActual = 'welcome' // welcome | workspace | todos
+
+function mostrarVista(vista) {
+  vistaActual = vista
+  const welcome = document.getElementById('welcome-panel')
+  const notas = document.getElementById('notas-panel')
+  const editor = document.getElementById('editor-panel')
+  const todos = document.getElementById('todos-panel')
+  const r1 = document.getElementById('resizer-1')
+  const r2 = document.getElementById('resizer-2')
+  const r3 = document.getElementById('resizer-3')
+
+  // Hide all right panels first
+  ;[welcome, notas, editor, todos].forEach(el => { if (el) el.style.display = 'none' })
+  ;[r2, r3].forEach(el => { if (el) el.style.display = 'none' })
+
+  if (vista === 'welcome') {
+    if (welcome) { welcome.style.display = 'flex'; welcome.style.flex = '1' }
+  } else if (vista === 'workspace') {
+    if (notas) { notas.style.display = 'flex'; notas.style.flex = 'none'; notas.style.width = '260px' }
+    if (r2) r2.style.display = 'block'
+    if (editor) { editor.style.display = 'flex'; editor.style.flex = '1' }
+  } else if (vista === 'todos') {
+    if (r3) r3.style.display = 'none'
+    if (todos) { todos.style.display = 'flex'; todos.style.flex = '1'; todos.style.minWidth = '0' }
+  }
+}
+
+// ==================== ZONE HANDLERS ====================
+
 function handleZoneTodos() {
-  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
-  else abrirTodosGlobalModo('list')
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+  } else {
+    mostrarVista('todos')
+    cargarTodosGlobal().then(() => {
+      renderTodos()
+      setTodosMode('list')
+    })
+    // Highlight active zone
+    document.getElementById('zone-todos')?.classList.add('active')
+    document.getElementById('zone-kanban')?.classList.remove('active')
+  }
 }
 
 function handleZoneKanban() {
-  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
-  else abrirTodosGlobalModo('kanban')
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+  } else {
+    mostrarVista('todos')
+    cargarTodosGlobal().then(() => {
+      renderTodos()
+      setTodosMode('kanban')
+    })
+    document.getElementById('zone-kanban')?.classList.add('active')
+    document.getElementById('zone-todos')?.classList.remove('active')
+  }
 }
 
 function handleZonePapelera() {
@@ -326,20 +359,33 @@ function handleZonePapelera() {
   else abrirPapelera()
 }
 
+// Override seleccionarLibreta to switch to workspace view
+const _origSeleccionarLibreta = window.seleccionarLibreta
+window.seleccionarLibreta = function(libreta, el) {
+  mostrarVista('workspace')
+  document.getElementById('zone-todos')?.classList.remove('active')
+  document.getElementById('zone-kanban')?.classList.remove('active')
+  if (_origSeleccionarLibreta) _origSeleccionarLibreta(libreta, el)
+  else {
+    document.querySelectorAll('.libreta-item').forEach(i => i.classList.remove('active'))
+    el.classList.add('active')
+    window.libretaActual = libreta
+    document.getElementById('libreta-nombre').textContent = descifrar(libreta.name_enc)
+    cargarNotas(libreta.id)
+  }
+}
+
 async function cerrarSesionConArchivo() {
   cerrarSesion()
 }
 
-  // Sign out with archive
-  async function cerrarSesionConArchivo() {
-    await archivarClosedYRefrescar()
-    cerrarSesion()
-  }
-
   (async () => {
     const sesion = await verificarSesion()
     if (!sesion) window.location.href = 'login.html'
-    else iniciarNotas(sesion)
+    else {
+      await iniciarNotas(sesion)
+      mostrarVista('welcome')
+    }
   })()
 </script>
 

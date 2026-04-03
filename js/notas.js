@@ -494,11 +494,13 @@ async function guardarNota() {
     updated_at: new Date().toISOString()
   }).eq('id', notaActual.id)
   if (error) return alert('Error saving note.')
+  notaActual.title_enc = cifrar(titulo)
   window._hayaCambios = false
   await registrarActividad('saved note')
-  if (libretaActual) await cargarNotas(libretaActual.id)
-  document.getElementById('nota-fecha').textContent = 'Modified: ' + formatearFecha(new Date())
-}
+
+  // Update title in notes list without full reload
+  const itemTitulo = document.querySelector(`.nota-item[data-id="${notaActual.id}"] .nota-item-titulo`)
+  if (itemTitulo) itemTitulo.textContent = titulo || 'Untitled'
 
 async function eliminarNota() {
   if (!notaActual) return
