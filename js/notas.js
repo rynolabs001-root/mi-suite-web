@@ -856,3 +856,29 @@ function cerrarLightbox() {
   const img = document.getElementById('att-lightbox-img')
   if (img) img.src = ''
 }
+
+// ==================== ENCRIPTACION ====================
+
+function cifrar(texto) {
+  if (!texto) return ''
+  return btoa(unescape(encodeURIComponent(texto)))
+}
+
+function descifrar(texto) {
+  if (!texto) return ''
+  try { return decodeURIComponent(escape(atob(texto))) } catch { return texto }
+}
+
+// ==================== UTILIDADES ====================
+
+function formatearFecha(fecha) {
+  if (!fecha) return ''
+  return new Date(fecha).toLocaleDateString('en-US', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+
+// ==================== MODULOS ====================
+
+function abrirTodos() { iniciarTodos() }
