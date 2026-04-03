@@ -247,26 +247,24 @@
 <script src="../js/mobile.js"></script>
 <script>
   // Zone handlers — archive closed before navigating
-  function handleZoneTodos() {
-    archivarClosedYRefrescar().then(() => {
-      if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
-      else abrirTodosGlobalModo('list')
-    })
-  }
+function handleZoneTodos() {
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
+  else abrirTodosGlobalModo('list')
+}
 
-  function handleZoneKanban() {
-    archivarClosedYRefrescar().then(() => {
-      if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
-      else abrirTodosGlobalModo('kanban')
-    })
-  }
+function handleZoneKanban() {
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('todos')
+  else abrirTodosGlobalModo('kanban')
+}
 
-  function handleZonePapelera() {
-    archivarClosedYRefrescar().then(() => {
-      if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('papelera')
-      else abrirPapelera()
-    })
-  }
+function handleZonePapelera() {
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('papelera')
+  else abrirPapelera()
+}
+
+async function cerrarSesionConArchivo() {
+  cerrarSesion()
+}
 
   // Sign out with archive
   async function cerrarSesionConArchivo() {
