@@ -904,3 +904,79 @@ function iniciarBusqueda() {
   const sidebarSearch = document.getElementById('sidebar-search')
   if (sidebarSearch) sidebarSearch.addEventListener('input', () => buscarGlobal(sidebarSearch.value))
 }
+
+function restaurarChipsEnEditor() {
+  const editor = document.getElementById('nota-contenido')
+  if (!editor) return
+  editor.querySelectorAll('.att-chip').forEach(async chip => {
+    const attId = chip.dataset.attId
+    if (!attId) return
+    const { data: att } = await db.from('note_attachments').select('*').eq('id', attId).single()
+    if (!att) return
+    chip.querySelector('.att-chip-menu')?.remove()
+    chip.onclick = null
+    chip.draggable = true
+    const menu = document.createElement('div')
+    menu.className = 'att-chip-menu'
+    const menuItems = [
+      { icon: '??', label: 'View', action: () => verChipAtt(att, chip) },
+      { icon: '?', label: 'Download', action: () => descargarAttachment(att) },
+      { icon: '??', label: 'Remove from note', action: () => { chip.remove(); window._hayaCambios = true }, danger: true }
+    ]
+    menuItems.forEach(item => {
+      const btn = document.createElement('button')
+      btn.className = 'att-chip-menu-item' + (item.danger ? ' danger' : '')
+      btn.innerHTML = '<span style="font-size:12px;">' + item.icon + '</span> ' + item.label
+      btn.onclick = e => { e.stopPropagation(); menu.classList.remove('open'); item.action() }
+      menu.appendChild(btn)
+    })
+    chip.appendChild(menu)
+    chip.onclick = e => {
+      e.stopPropagation(); e.preventDefault()
+      document.querySelectorAll('.att-chip-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open') })
+      menu.classList.toggle('open')
+    }
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/att-chip-id', attId)
+      e.dataTransfer.effectAllowed = 'move'
+      setTimeout(() => chip.style.opacity = '0.4', 0)
+    })
+    chip.addEventListener('dragend', () => { chip.style.opacity = '1'; window._hayaCambios = true })
+  })
+}
+
+function abrirAttachmentsLibreta() {
+  if (!libretaActual) return alert('Select a notebook first.')
+  abrirAttachments()
+}
+
+async function buscarGlobal(termino) {
+  if (!termino) {
+    document.getElementById('libreta-nombre').textContent = libretaActual
+      ? descifrar(libretaActual.name_enc) : 'Select a notebook'
+    if (libretaActual) cargarNotas(libretaActual.id)
+    return
+  }
+  const { data } = await db.from('notes').select('id, title_enc, content_enc, notebook_id, updated_at, is_pinned, color_id')
+  if (!data) return
+  const resultados = data.filter(n => {
+    const titulo = descifrar(n.title_enc).toLowerCase()
+    const contenido = descifrar(n.content_enc).replace(/<[^>]+>/g, '').toLowerCase()
+    return titulo.includes(termino.toLowerCase()) || contenido.includes(termino.toLowerCase())
+  })
+  const lista = document.getElementById('notas-list')
+  lista.innerHTML = ''
+  document.getElementById('libreta-nombre').textContent = 'Results: "' + termino + '" (' + resultados.length + ')'
+  if (!resultados.length) { lista.innerHTML = '<li class="nota-empty">No results found.</li>'; return }
+  resultados.forEach(nota => {
+    const colorObj = NOTE_COLORS.find(c => c.id === nota.color_id)
+    const bgColor = colorObj?.bg || ''
+    const li = document.createElement('li')
+    li.className = 'nota-item'
+    li.dataset.id = nota.id
+    if (bgColor) li.style.background = bgColor
+    li.innerHTML = '<div class="nota-item-header"><div class="nota-item-titulo">' + (descifrar(nota.title_enc) || 'Untitled') + '</div></div><div class="nota-item-preview">' + (descifrar(nota.content_enc)?.replace(/<[^>]+>/g, '').substring(0, 60) || '...') + '</div><div class="nota-item-fecha">' + formatearFecha(nota.updated_at) + '</div>'
+    li.onclick = () => abrirNota(nota, li)
+    lista.appendChild(li)
+  })
+}
