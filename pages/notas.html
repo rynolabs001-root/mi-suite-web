@@ -360,20 +360,59 @@ function handleZonePapelera() {
 }
 
 // Override seleccionarLibreta to switch to workspace view
-const _origSeleccionarLibreta = window.seleccionarLibreta
-window.seleccionarLibreta = function(libreta, el) {
-  mostrarVista('workspace')
-  document.getElementById('zone-todos')?.classList.remove('active')
-  document.getElementById('zone-kanban')?.classList.remove('active')
-  if (_origSeleccionarLibreta) _origSeleccionarLibreta(libreta, el)
-  else {
-    document.querySelectorAll('.libreta-item').forEach(i => i.classList.remove('active'))
-    el.classList.add('active')
-    window.libretaActual = libreta
-    document.getElementById('libreta-nombre').textContent = descifrar(libreta.name_enc)
-    cargarNotas(libreta.id)
+function handleZoneTodos() {
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+  } else {
+    mostrarVista('todos')
+    cargarTodosGlobal().then(() => {
+      renderTodos()
+      setTodosMode('list')
+    })
+    document.getElementById('zone-todos')?.classList.add('active')
+    document.getElementById('zone-kanban')?.classList.remove('active')
   }
 }
+
+function handleZoneKanban() {
+  if (typeof esMobile === 'function' && esMobile()) {
+    mobileNavSelect('todos')
+  } else {
+    mostrarVista('todos')
+    cargarTodosGlobal().then(() => {
+      renderTodos()
+      setTodosMode('kanban')
+    })
+    document.getElementById('zone-kanban')?.classList.add('active')
+    document.getElementById('zone-todos')?.classList.remove('active')
+  }
+}
+
+function handleZonePapelera() {
+  if (typeof esMobile === 'function' && esMobile()) mobileNavSelect('papelera')
+  else abrirPapelera()
+}
+
+async function cerrarSesionConArchivo() {
+  cerrarSesion()
+}
+
+  (async () => {
+    const sesion = await verificarSesion()
+    if (!sesion) window.location.href = 'login.html'
+    else {
+      await iniciarNotas(sesion)
+      mostrarVista('welcome')
+      // Patch seleccionarLibreta AFTER notas.js is loaded
+      const _orig = seleccionarLibreta
+      window.seleccionarLibreta = function(libreta, el) {
+        mostrarVista('workspace')
+        document.getElementById('zone-todos')?.classList.remove('active')
+        document.getElementById('zone-kanban')?.classList.remove('active')
+        _orig(libreta, el)
+      }
+    }
+  })()
 
 async function cerrarSesionConArchivo() {
   cerrarSesion()
