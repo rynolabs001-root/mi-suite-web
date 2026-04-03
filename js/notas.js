@@ -888,3 +888,19 @@ function abrirTodos() { iniciarTodos() }
 function abrirRecordatorio() { alert('Reminder — coming soon.') }
 
 }
+
+function iniciarBusqueda() {
+  const input = document.getElementById('buscar-notas')
+  if (input) {
+    input.addEventListener('input', () => {
+      const termino = input.value.toLowerCase()
+      document.querySelectorAll('.nota-item').forEach(el => {
+        const titulo = el.querySelector('.nota-item-titulo')?.textContent.toLowerCase() || ''
+        const preview = el.querySelector('.nota-item-preview')?.textContent.toLowerCase() || ''
+        el.style.display = titulo.includes(termino) || preview.includes(termino) ? '' : 'none'
+      })
+    })
+  }
+  const sidebarSearch = document.getElementById('sidebar-search')
+  if (sidebarSearch) sidebarSearch.addEventListener('input', () => buscarGlobal(sidebarSearch.value))
+}
