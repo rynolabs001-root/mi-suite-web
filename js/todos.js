@@ -962,3 +962,44 @@ function setTodosMode(mode) {
   if (tabKanban) tabKanban.classList.toggle('active', mode === 'kanban')
   renderTodos()
 }
+
+El archivo se cortó — le faltan las últimas funciones. Agrega esto al final de js/todos.js:
+javascriptasync function reabrirTodo(id) {
+  const todo = todosList.find(t => t.id === id)
+  if (!todo) return
+  await db.from('todos').update({ status: 'pending', completed_at: null }).eq('id', id)
+  todo.status = 'pending'
+  todo.completed_at = null
+  renderTodos()
+  await cargarTodosSummary()
+}
+
+async function verVersionesTodos() {
+  const { data } = await db.from('todos_versions').select('*').order('saved_at', { ascending: false })
+  if (!data?.length) return alert('No saved versions.')
+  const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
+  const sel = prompt(`Saved versions:\n${lista}\n\nEnter number to restore:`)
+  if (!sel) return
+  const idx = parseInt(sel) - 1
+  if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
+  if (!confirm('Restore this version?')) return
+  await db.from('todos').delete().is('note_id', null)
+  await db.from('todos').insert(data[idx].snapshot.map(t => ({
+    text_enc: cifrar(t.text), status: t.status,
+    kanban_column_id: t.kanban_column_id, sort_order: t.sort_order,
+    started_at: t.started_at, completed_at: t.completed_at,
+    created_by: sesionActual.user.id
+  })))
+  await cargarTodosGlobal()
+  renderTodos()
+  alert('Version restored.')
+}
+
+function setTodosMode(mode) {
+  todosMode = mode
+  const tabList = document.getElementById('tab-list')
+  const tabKanban = document.getElementById('tab-kanban')
+  if (tabList) tabList.classList.toggle('active', mode === 'list')
+  if (tabKanban) tabKanban.classList.toggle('active', mode === 'kanban')
+  renderTodos()
+}
