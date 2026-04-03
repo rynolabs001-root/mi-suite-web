@@ -884,3 +884,7 @@ function formatearFecha(fecha) {
 // ==================== MODULOS ====================
 
 function abrirTodos() { iniciarTodos() }
+
+function abrirRecordatorio() { alert('Reminder — coming soon.') }
+
+}
