@@ -80,12 +80,27 @@ async function cargarTodosGlobal() {
   await cargarTodosSummary()
 }
 
-// ==================== UTILS ====================
+// Called by refresh button
+async function refreshClosed() {
+  const { data: todos } = await db.from('todos').select('*').order('sort_order')
+  const seenIds = new Set()
+  todosList = (todos || []).filter(t => {
+    if (seenIds.has(t.id)) return false
+    seenIds.add(t.id)
+    return true
+  })
+  renderTodos()
+  await cargarTodosSummary()
+}
+
+// ==================== RENDER ====================
 
 function renderTodos() {
   if (todosMode === 'list') renderLista()
   else renderKanban()
 }
+
+// ==================== UTILS ====================
 
 function fmtFecha(fecha) {
   if (!fecha) return '—'
@@ -121,6 +136,7 @@ function renderLista() {
   zona.style.cssText = 'padding:10px;flex:7;overflow-y:auto;min-height:0;'
   body.appendChild(zona)
 
+  // Active only — done/closed/archived go to LOG only
   const activos = todosList
     .filter(t => t.status === 'pending' || t.status === 'in_progress')
     .sort((a, b) => (diasEntre(b.started_at, null) || 0) - (diasEntre(a.started_at, null) || 0))
@@ -195,6 +211,7 @@ function crearTodoItem(todo) {
     draggedTodo = null
     limpiarIndicadores(document.getElementById('todos-zona'))
   })
+
   iniciarTouchDragTodo(div, todo)
   return div
 }
@@ -225,11 +242,14 @@ function renderKanban() {
 
   kanbanColumns.forEach(col => {
     const isLocked = col.title === KANBAN_CLOSED_COL
-    const items = isLocked ? [] : todosList.filter(t =>
-      t.kanban_column_id === col.id &&
-      !sourceIds.has(t.id) &&
-      t.status === 'in_progress'
-    ).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    const items = isLocked
+      ? [] // Closed col always empty — items disappear to log after 5s
+      : todosList.filter(t =>
+          t.kanban_column_id === col.id &&
+          !sourceIds.has(t.id) &&
+          t.status === 'in_progress'
+        ).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+
     zona.appendChild(crearKanbanCol(col, items, isLocked))
   })
 
@@ -299,6 +319,7 @@ function crearKanbanColSource(sourceTodos) {
     renderTodos()
     await cargarTodosSummary()
   })
+
   return colDiv
 }
 
@@ -324,7 +345,7 @@ function crearKanbanCol(col, items, isLocked) {
   if (isLocked) {
     const hint = document.createElement('div')
     hint.style.cssText = 'font-size:10px;color:var(--text3);text-align:center;padding:8px 4px;'
-    hint.textContent = 'Drop here to close → log in 3s'
+    hint.textContent = 'Drag here to close → moves to log in 5s'
     colDiv.appendChild(hint)
   } else {
     const addBtn = document.createElement('button')
@@ -356,6 +377,7 @@ function crearKanbanCol(col, items, isLocked) {
     if (!todo) return
 
     if (isLocked) {
+      // Moved to CLOSED → show briefly then archive to log after 5s
       await moverAClosed(todo, col.id)
       draggedTodo = null
       return
@@ -382,39 +404,47 @@ function crearKanbanCol(col, items, isLocked) {
     renderTodos()
     await cargarTodosSummary()
   })
+
   return colDiv
 }
 
-// ==================== CLOSED (3s → LOG) ====================
-
+// Move to CLOSED — show card briefly for 5s then archive to log
 async function moverAClosed(todo, colId) {
   const completedAt = new Date().toISOString()
+
+  // Update in DB immediately
   await db.from('todos').update({
     kanban_column_id: colId,
     status: 'closed',
     completed_at: completedAt
   }).eq('id', todo.id)
+
   todo.kanban_column_id = colId
   todo.status = 'closed'
   todo.completed_at = completedAt
 
-  const closedColEl = document.querySelector('.kanban-col.col-closed')
+  // Show a temporary closed card in the CLOSED column
+  const closedColEl = document.querySelector(`.kanban-col.col-closed`)
   if (closedColEl) {
-    const dias = diasEntre(todo.started_at, completedAt)
     const tmpCard = document.createElement('div')
     tmpCard.className = 'kanban-card closed-card'
     tmpCard.style.cssText = 'opacity:1;transition:opacity 0.5s;'
+    const dias = diasEntre(todo.started_at, completedAt)
     tmpCard.innerHTML = `
       <div class="kanban-card-text">${descifrar(todo.text_enc)}</div>
       <div style="font-size:10px;color:var(--success);margin-top:3px;">
         Closed · ${dias !== null ? dias + 'd' : '—'}
       </div>
     `
+    // Insert before hint text
     const hint = closedColEl.querySelector('div')
     closedColEl.insertBefore(tmpCard, hint)
+
+    // Update count badge
     const badge = closedColEl.querySelector('.kanban-col-count')
     if (badge) badge.textContent = '1'
 
+    // After 5s → fade out → archive to log
     setTimeout(() => {
       tmpCard.style.opacity = '0'
       setTimeout(async () => {
@@ -425,63 +455,17 @@ async function moverAClosed(todo, colId) {
         renderTodos()
         await cargarTodosSummary()
       }, 500)
-    }, 3000)
+    }, 3000)  // ← 3 segundos
   } else {
+    // Fallback if col not in DOM
     setTimeout(async () => {
       await db.from('todos').update({ status: 'archived' }).eq('id', todo.id)
       todo.status = 'archived'
       renderTodos()
       await cargarTodosSummary()
-    }, 3000)
+    }, 5000)
   }
-  await cargarTodosSummary()
-}
 
-// ==================== DONE → LOG (2s) ====================
-
-async function toggleTodoStatus(id) {
-  const todo = todosList.find(t => t.id === id)
-  if (!todo) return
-  const nuevo = todo.status === 'done' ? 'pending' : 'done'
-  const updates = {
-    status: nuevo,
-    completed_at: nuevo === 'done' ? new Date().toISOString() : null
-  }
-  await db.from('todos').update(updates).eq('id', id)
-  todo.status = nuevo
-  todo.completed_at = updates.completed_at
-
-  if (nuevo === 'done') {
-    const itemEl = document.querySelector(`.todo-item[data-id="${id}"]`)
-    if (itemEl) {
-      itemEl.querySelector('.todo-check')?.classList.add('done')
-      itemEl.querySelector('.todo-text')?.classList.add('done')
-      setTimeout(() => {
-        itemEl.style.transition = 'opacity 0.4s, transform 0.4s'
-        itemEl.style.opacity = '0'
-        itemEl.style.transform = 'translateX(20px)'
-        setTimeout(() => {
-          renderTodos()
-          cargarTodosSummary()
-        }, 400)
-      }, 2000)
-    } else {
-      renderTodos()
-      await cargarTodosSummary()
-    }
-  } else {
-    renderTodos()
-    await cargarTodosSummary()
-  }
-}
-
-async function reabrirTodo(id) {
-  const todo = todosList.find(t => t.id === id)
-  if (!todo) return
-  await db.from('todos').update({ status: 'pending', completed_at: null }).eq('id', id)
-  todo.status = 'pending'
-  todo.completed_at = null
-  renderTodos()
   await cargarTodosSummary()
 }
 
@@ -490,7 +474,11 @@ async function reabrirTodo(id) {
 function renderReporte(modo) {
   const wrap = document.createElement('div')
   wrap.className = 'reporte-wrap'
-  wrap.style.cssText = `border-top:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;min-height:42px;overflow:hidden;flex:${reporteOculto ? '0 0 42px' : '3'};`
+  wrap.style.cssText = `
+    border-top:1px solid var(--border);display:flex;flex-direction:column;
+    flex-shrink:0;min-height:42px;overflow:hidden;
+    flex:${reporteOculto ? '0 0 42px' : '3'};
+  `
 
   const activos = todosList
     .filter(t => !isTerminal(t.status))
@@ -498,7 +486,10 @@ function renderReporte(modo) {
 
   const cerrados = todosList
     .filter(t => isTerminal(t.status))
-    .sort((a, b) => new Date(b.completed_at || b.updated_at || 0) - new Date(a.completed_at || a.updated_at || 0))
+    .sort((a, b) =>
+      new Date(b.completed_at || b.updated_at || 0) -
+      new Date(a.completed_at || a.updated_at || 0)
+    )
 
   const items = [...activos, ...cerrados]
 
@@ -528,44 +519,63 @@ function renderReporte(modo) {
         ? diasEntre(todo.started_at, todo.completed_at)
         : diasEntre(todo.started_at, null)
       const diasLabel = dias !== null ? (terminal ? `${dias}d` : `${dias}d open`) : '—'
-      const dotColor = terminal ? 'var(--success)' : '#ff9f0a'
-      const diasClass = terminal ? 'ok' : (dias !== null && dias > 7 ? 'vencido' : '')
-
-      const row = document.createElement('div')
-      row.className = 'reporte-item'
-      row.innerHTML = `
-        <div class="reporte-dot" style="background:${dotColor};"></div>
-        <div style="flex:1;min-width:0;">
-          <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
-          ${modo === 'kanban' && col ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>` : ''}
-          ${terminal ? `<div style="font-size:10px;color:var(--success);">${todo.status === 'done' ? 'Done' : 'Closed'} · ${fmtFecha(todo.completed_at)}</div>` : ''}
-        </div>
-        <div class="reporte-fechas">
-          <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
-          <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
-        </div>
-        <span class="reporte-dias ${diasClass}">${diasLabel}</span>
-        ${todo.status === 'done' ? `<button class="reporte-delete" title="Reopen" onclick="reabrirTodo('${todo.id}')" style="color:var(--accent);">↩</button>` : ''}
-        <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
-      `
-      bodyEl.appendChild(row)
-    })
-  }
-
-  wrap.appendChild(bodyEl)
-  return wrap
-}
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
   document.querySelectorAll('.reporte-wrap').forEach(wrap => {
     const body = wrap.querySelector('.reporte-body')
+    const arrow = wrap.querySelector('span[style*="transform"]') || wrap.querySelector('span:last-child')
     wrap.style.flex = reporteOculto ? '0 0 42px' : '3'
     wrap.style.minHeight = '42px'
     if (body) body.style.display = reporteOculto ? 'none' : 'block'
     const zona = wrap.parentElement?.querySelector('#todos-zona, #kanban-zona')
     if (zona) zona.style.flex = reporteOculto ? '1' : '7'
   })
+}
+
+// ==================== DONE → LOG (2s) ====================
+
+async function toggleTodoStatus(id) {
+  const todo = todosList.find(t => t.id === id)
+  if (!todo) return
+  const nuevo = todo.status === 'done' ? 'pending' : 'done'
+  const updates = {
+    status: nuevo,
+    completed_at: nuevo === 'done' ? new Date().toISOString() : null
+  }
+  await db.from('todos').update(updates).eq('id', id)
+  todo.status = nuevo
+  todo.completed_at = updates.completed_at
+
+  if (nuevo === 'done') {
+    const itemEl = document.querySelector(`.todo-item[data-id="${id}"]`)
+    if (itemEl) {
+      itemEl.querySelector('.todo-check')?.classList.add('done')
+      itemEl.querySelector('.todo-text')?.classList.add('done')
+      setTimeout(() => {
+        itemEl.style.transition = 'opacity 0.4s, transform 0.4s'
+        itemEl.style.opacity = '0'
+        itemEl.style.transform = 'translateX(20px)'
+        setTimeout(() => { renderTodos(); cargarTodosSummary() }, 400)
+      }, 2000)
+    } else {
+      renderTodos()
+      await cargarTodosSummary()
+    }
+  } else {
+    renderTodos()
+    await cargarTodosSummary()
+  }
+}
+
+async function reabrirTodo(id) {
+  const todo = todosList.find(t => t.id === id)
+  if (!todo) return
+  await db.from('todos').update({ status: 'pending', completed_at: null }).eq('id', id)
+  todo.status = 'pending'
+  todo.completed_at = null
+  renderTodos()
+  await cargarTodosSummary()
 }
 
 // ==================== TOUCH DRAG ====================
@@ -661,8 +671,7 @@ function iniciarTouchDragKanban(card, todo) {
     const elUnder = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
     clone.style.display = ''
     document.querySelectorAll('.kanban-col').forEach(c => c.style.outline = '')
-    const targetCol = elUnder?.closest('.kanban-col')
-    if (targetCol) targetCol.style.outline = '2px solid var(--accent)'
+    elUnder?.closest('.kanban-col')?.style.setProperty('outline', '2px solid var(--accent)')
   }, { passive: false })
 
   card.addEventListener('touchend', async e => {
@@ -683,7 +692,8 @@ function iniciarTouchDragKanban(card, todo) {
       todoDragged.status = 'pending'
       await db.from('todos').update({ kanban_column_id: null, status: 'pending' }).eq('id', draggedTodo)
     } else if (targetCol.classList.contains('col-closed')) {
-      await moverAClosed(todoDragged, colId)
+      const col = kanbanColumns.find(c => c.id === colId)
+      if (col) await moverAClosed(todoDragged, colId)
     } else {
       todoDragged.kanban_column_id = colId
       todoDragged.status = 'in_progress'
@@ -862,7 +872,7 @@ async function agregarTodoEnColumna(colId) {
 
 async function agregarColumna() {
   const userCols = kanbanColumns.filter(c => c.title !== KANBAN_CLOSED_COL)
-  if (userCols.length >= 4) return alert('Maximum columns reached.')
+  if (userCols.length >= 4) return alert("Maximum columns reached.")
   const titulo = prompt('Column name:')
   if (!titulo) return
   if ([KANBAN_CLOSED_COL, KANBAN_SOURCE_TITLE, 'To Do'].includes(titulo)) return alert(`"${titulo}" is reserved.`)
@@ -933,6 +943,47 @@ async function verVersionesTodos() {
   if (!confirm('Restore this version?')) return
   await db.from('todos').delete().is('note_id', null)
   await db.from('todos').insert(data[idx].snapshot.map(t => ({
+    text_enc: cifrar(t.text), status: t.status, kanban_column_id: t.kanban_column_id,
+    sort_order: t.sort_order, started_at: t.started_at, completed_at: t.completed_at,
+    created_by: sesionActual.user.id
+  })))
+  await cargarTodosGlobal()
+  renderTodos()
+  alert('Version restored.')
+}
+
+// ==================== MODO ====================
+
+function setTodosMode(mode) {
+  todosMode = mode
+  const tabList = document.getElementById('tab-list')
+  const tabKanban = document.getElementById('tab-kanban')
+  if (tabList) tabList.classList.toggle('active', mode === 'list')
+  if (tabKanban) tabKanban.classList.toggle('active', mode === 'kanban')
+  renderTodos()
+}
+
+async function reabrirTodo(id) {
+  const todo = todosList.find(t => t.id === id)
+  if (!todo) return
+  await db.from('todos').update({ status: 'pending', completed_at: null }).eq('id', id)
+  todo.status = 'pending'
+  todo.completed_at = null
+  renderTodos()
+  await cargarTodosSummary()
+}
+
+async function verVersionesTodos() {
+  const { data } = await db.from('todos_versions').select('*').order('saved_at', { ascending: false })
+  if (!data?.length) return alert('No saved versions.')
+  const lista = data.map((v, i) => `${i + 1}. ${formatearFecha(v.saved_at)}`).join('\n')
+  const sel = prompt(`Saved versions:\n${lista}\n\nEnter number to restore:`)
+  if (!sel) return
+  const idx = parseInt(sel) - 1
+  if (isNaN(idx) || !data[idx]) return alert('Invalid number.')
+  if (!confirm('Restore this version?')) return
+  await db.from('todos').delete().is('note_id', null)
+  await db.from('todos').insert(data[idx].snapshot.map(t => ({
     text_enc: cifrar(t.text), status: t.status,
     kanban_column_id: t.kanban_column_id, sort_order: t.sort_order,
     started_at: t.started_at, completed_at: t.completed_at,
@@ -942,8 +993,6 @@ async function verVersionesTodos() {
   renderTodos()
   alert('Version restored.')
 }
-
-// ==================== MODO ====================
 
 function setTodosMode(mode) {
   todosMode = mode
