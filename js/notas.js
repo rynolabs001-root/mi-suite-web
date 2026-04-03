@@ -3,15 +3,16 @@ let libretaActual = null
 let sesionActual = null
 let historialSesion = []
 
+// Colors 20% more muted
 const NOTE_COLORS = [
   { id: 'none',   bg: null,      label: 'Default' },
-  { id: 'yellow', bg: '#fcd34d', label: 'Yellow'  },
-  { id: 'blue',   bg: '#60a5fa', label: 'Blue'    },
-  { id: 'green',  bg: '#4ade80', label: 'Green'   },
-  { id: 'pink',   bg: '#f472b6', label: 'Pink'    },
-  { id: 'purple', bg: '#c084fc', label: 'Purple'  },
-  { id: 'orange', bg: '#fb923c', label: 'Orange'  },
-  { id: 'gray',   bg: '#cbd5e1', label: 'Gray'    },
+  { id: 'yellow', bg: '#fde68a', label: 'Yellow'  },
+  { id: 'blue',   bg: '#bfdbfe', label: 'Blue'    },
+  { id: 'green',  bg: '#bbf7d0', label: 'Green'   },
+  { id: 'pink',   bg: '#fecdd3', label: 'Pink'    },
+  { id: 'purple', bg: '#e9d5ff', label: 'Purple'  },
+  { id: 'orange', bg: '#fed7aa', label: 'Orange'  },
+  { id: 'gray',   bg: '#e2e8f0', label: 'Gray'    },
 ]
 
 async function iniciarNotas(sesion) {
@@ -88,15 +89,7 @@ async function aplicarColorNota(color) {
   notaActual.color_id = color.id
   aplicarColorEditor(color.bg)
   sincronizarSwatchesEditor()
-  const li = document.querySelector(`.nota-item[data-id="${notaActual.id}"]`)
-  if (li) {
-    li.style.background = color.bg || ''
-    const dot = li.querySelector('.nota-color-dot')
-    if (dot) { dot.style.background = color.bg || '#e0e0e0'; dot.classList.toggle('has-color', !!color.bg) }
-    li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
-      s.classList.toggle('selected', s.dataset.colorId === color.id)
-    })
-  }
+  actualizarColorEnLista(notaActual.id, color)
 }
 
 async function aplicarColorNotaById(notaId, color) {
@@ -107,17 +100,23 @@ async function aplicarColorNotaById(notaId, color) {
     aplicarColorEditor(color.bg)
     sincronizarSwatchesEditor()
   }
+  actualizarColorEnLista(notaId, color)
+}
+
+function actualizarColorEnLista(notaId, color) {
   const li = document.querySelector(`.nota-item[data-id="${notaId}"]`)
-  if (li) {
-    li.style.background = color.bg || ''
-    const dot = li.querySelector('.nota-color-dot')
-    if (dot) { dot.style.background = color.bg || '#e0e0e0'; dot.classList.toggle('has-color', !!color.bg) }
-    li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
-      s.classList.toggle('selected', s.dataset.colorId === color.id)
-    })
-    const inline = li.querySelector('.nota-color-inline')
-    if (inline) inline.classList.remove('open')
+  if (!li) return
+  li.style.background = color.bg || ''
+  const dot = li.querySelector('.nota-color-dot')
+  if (dot) {
+    dot.style.background = color.bg || '#e0e0e0'
+    dot.classList.toggle('has-color', !!color.bg)
   }
+  li.querySelectorAll('.nota-color-inline .color-swatch').forEach(s => {
+    s.classList.toggle('selected', s.dataset.colorId === color.id)
+  })
+  const inline = li.querySelector('.nota-color-inline')
+  if (inline) inline.classList.remove('open')
 }
 
 function aplicarColorEditor(bg) {
@@ -135,8 +134,7 @@ function aplicarColorEditor(bg) {
 // ==================== LIBRETAS ====================
 
 async function cargarLibretas() {
-  const { data, error } = await db
-    .from('notebooks').select('*').order('sort_order', { ascending: true })
+  const { data, error } = await db.from('notebooks').select('*').order('sort_order', { ascending: true })
   if (error) return console.error(error)
   const lista = document.getElementById('libretas-list')
   const badge = document.getElementById('libretas-count')
@@ -267,9 +265,8 @@ async function abrirTodosGlobalModo(modo) {
 
 async function cargarPapeleraCuenta() {
   const { data } = await db.from('trash').select('id')
-  const count = data?.length || 0
   const el = document.getElementById('papelera-count')
-  if (el) el.textContent = count
+  if (el) el.textContent = data?.length || 0
 }
 
 function abrirPapelera() {
@@ -312,7 +309,7 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
         <div class="nota-item-actions">
           <button class="nota-pin-btn ${nota.is_pinned ? 'pinned' : ''}"
             onclick="event.stopPropagation(); togglePinNota('${nota.id}')"
-            title="${nota.is_pinned ? 'Unpin' : 'Pin note'}">📌</button>
+            title="${nota.is_pinned ? 'Unpin' : 'Pin'}">📌</button>
           <div class="nota-color-dot ${bgColor ? 'has-color' : ''}"
             style="background:${bgColor || '#e0e0e0'};"
             onclick="event.stopPropagation(); toggleColorInline(event, '${nota.id}')"
@@ -341,7 +338,10 @@ async function cargarNotas(notebook_id, orden = 'updated_at') {
           if (parentLi) {
             parentLi.style.background = color.bg || ''
             const dot = parentLi.querySelector('.nota-color-dot')
-            if (dot) { dot.style.background = color.bg || '#e0e0e0'; dot.classList.toggle('has-color', !!color.bg) }
+            if (dot) {
+              dot.style.background = color.bg || '#e0e0e0'
+              dot.classList.toggle('has-color', !!color.bg)
+            }
             inlineEl.querySelectorAll('.color-swatch').forEach(s => {
               s.classList.toggle('selected', s.dataset.colorId === color.id)
             })
@@ -451,7 +451,7 @@ async function nuevaNota() {
 
   if (error) {
     console.error('Error creating note:', error)
-    alert('Error creating note: ' + error.message)
+    alert('Error: ' + error.message)
     return
   }
 
@@ -699,8 +699,6 @@ function formatearFecha(fecha) {
     hour: '2-digit', minute: '2-digit'
   })
 }
-
-// ==================== MODULOS ====================
 
 function abrirTodos() { iniciarTodos() }
 function abrirRecordatorio() { alert('Reminder — coming soon.') }

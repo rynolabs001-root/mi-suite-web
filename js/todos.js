@@ -455,7 +455,7 @@ async function moverAClosed(todo, colId) {
         renderTodos()
         await cargarTodosSummary()
       }, 500)
-    }, 5000)
+    }, 3000)  // ← 3 segundos
   } else {
     // Fallback if col not in DOM
     setTimeout(async () => {
@@ -480,12 +480,10 @@ function renderReporte(modo) {
     flex:${reporteOculto ? '0 0 42px' : '3'};
   `
 
-  // Active: oldest first
   const activos = todosList
     .filter(t => !isTerminal(t.status))
     .sort((a, b) => (diasEntre(b.started_at, null) || 0) - (diasEntre(a.started_at, null) || 0))
 
-  // Terminal: most recent first
   const cerrados = todosList
     .filter(t => isTerminal(t.status))
     .sort((a, b) =>
@@ -520,37 +518,7 @@ function renderReporte(modo) {
       const dias = terminal
         ? diasEntre(todo.started_at, todo.completed_at)
         : diasEntre(todo.started_at, null)
-      const diasLabel = dias !== null ? (terminal ? `${dias}d` : `${dias}d open`) : '—'
-      const diasClass = terminal ? 'ok' : (dias !== null && dias > 7 ? 'vencido' : '')
-      const dotClass = ['closed','archived'].includes(todo.status) ? 'closed'
-        : todo.status === 'done' ? 'done'
-        : todo.status === 'in_progress' ? 'in_progress'
-        : 'pending'
-
-      const row = document.createElement('div')
-      row.className = 'reporte-item'
-      row.innerHTML = `
-        <div class="reporte-dot ${dotClass}"></div>
-        <div style="flex:1;min-width:0;">
-          <div class="reporte-texto">${descifrar(todo.text_enc)}</div>
-          ${modo === 'kanban' && col ? `<div style="font-size:10px;color:var(--text3);">${col.title}</div>` : ''}
-          ${terminal ? `<div style="font-size:10px;color:var(--success);">${todo.status === 'done' ? 'Done' : 'Closed'} · ${fmtFecha(todo.completed_at)}</div>` : ''}
-        </div>
-        <div class="reporte-fechas">
-          <span class="reporte-fecha">Start: ${fmtFecha(todo.started_at)}</span>
-          <span class="reporte-fecha">End: ${fmtFecha(todo.completed_at)}</span>
-        </div>
-        <span class="reporte-dias ${diasClass}">${diasLabel}</span>
-        ${todo.status === 'done' ? `<button class="reporte-delete" title="Reopen" onclick="reabrirTodo('${todo.id}')" style="color:var(--accent);">↩</button>` : ''}
-        <button class="reporte-delete" onclick="eliminarDeReporte('${todo.id}')">✕</button>
-      `
-      bodyEl.appendChild(row)
-    })
-  }
-
-  wrap.appendChild(bodyEl)
-  return wrap
-}
+      const diasLabel = dias !== null ? (terminal ? `${dias}d` : `${dias}d open`) : '—
 
 function toggleReporte() {
   reporteOculto = !reporteOculto
