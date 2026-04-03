@@ -202,7 +202,7 @@ async function cargarTodosSummary() {
   if (!kanbanSummary) return
   kanbanSummary.innerHTML = ''
 
-  const EXCLUDED = ['To Do', "To-Do's", 'Closed']
+  const EXCLUDED = ['To Do', "To-Do's"]
   const seenTitles = new Set()
   let kanbanTotal = 0
   const colColors = ['#0071e3', '#af52de', '#ff9f0a', '#ff3b30', '#5ac8fa']
@@ -885,7 +885,7 @@ function formatearFecha(fecha) {
 
 function abrirTodos() { iniciarTodos() }
 
-function abrirRecordatorio() { alert('Reminder — coming soon.') }
+function abrirRecordatorio() { alert('Reminder ï¿½ coming soon.') }
 
 }
 
